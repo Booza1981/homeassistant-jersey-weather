@@ -58,7 +58,7 @@ class JerseyWeatherCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(minutes=30),
+            update_interval=timedelta(minutes=15),
         )
         self.hass = hass
 

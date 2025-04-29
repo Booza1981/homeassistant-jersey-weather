@@ -66,9 +66,8 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             "sw_version": "1.0",
             "configuration_url": "https://www.gov.je/weather/"
         }
-        # Set attribution with timestamp to make it more helpful in the UI
-        timestamp = datetime.now().strftime("%H:%M")
-        self._attr_attribution = f"Weather data from Jersey Met - Updated at {timestamp}"
+        # Set initial attribution
+        self._update_attribution()
         # Explicitly set supported features again to ensure it's recognized
         self._attr_supported_features = WeatherEntityFeature.FORECAST_DAILY
         _LOGGER.debug("Initialized Jersey Weather entity with coordinator data: %s", 
@@ -222,26 +221,9 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             
     @property
     def humidity(self) -> int | None:
-        """Return the humidity.
-        
-        This is not directly provided by the API, but we can estimate from conditions.
-        """
-        if not self.available:
-            return None
-            
-        # Use fixed humidity values based on conditions for better UI display
-        try:
-            condition = self.condition
-            if condition in ["sunny", "clear-night"]:
-                return 50  # Lower humidity estimate for clear conditions
-            elif condition in ["partlycloudy"]:
-                return 60  # Medium humidity for partly cloudy
-            elif condition in ["rainy", "pouring"]:
-                return 85  # High humidity for rain
-            else:
-                return 70  # Default medium-high humidity
-        except Exception:
-            return 60  # Default value
+        """Return the humidity."""
+        # Not provided by the API
+        return None
             
     @property
     def native_wind_speed(self) -> float | None:
@@ -288,6 +270,26 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             _LOGGER.error("Error getting wind bearing: %s", e)
             return None
 
+    def _update_attribution(self):
+        """Update attribution with current timestamp."""
+        timestamp = datetime.now().strftime("%H:%M")
+        issue_time = ""
+        
+        # Try to get the actual issue time from the API data
+        if self.coordinator.data and "forecast" in self.coordinator.data:
+            issue_time = self.coordinator.data["forecast"].get("issuetime", "")
+            if issue_time:
+                issue_time = f" - Issued at {issue_time}"
+                
+        self._attr_attribution = f"Weather data from Jersey Met - Updated at {timestamp}{issue_time}"
+        
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        # Update the attribution with new timestamp
+        self._update_attribution()
+        # Let the parent class handle the rest
+        super()._handle_coordinator_update()
+    
     # Method 1: Property implementation
     @property
     def forecast_daily(self) -> list[Forecast] | None:
