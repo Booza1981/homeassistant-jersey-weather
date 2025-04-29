@@ -237,9 +237,9 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
         _LOGGER.debug("forecast_daily property was called by Home Assistant")
         
         try:
-        if not self.available:
-            _LOGGER.debug("No forecast data available")
-            return None
+            if not self.available:
+                _LOGGER.debug("No forecast data available")
+                return None
         
         forecast_list = []
         
