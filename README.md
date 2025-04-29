@@ -1,9 +1,8 @@
 # Jersey Weather Integration for Home Assistant
 
 <div align="center">
-  <img src="images/logo.svg" alt="Jersey Met Logo" width="200">
-  <p><i>SVG recreation of the Jersey Met logo</i></p>
-
+  <img src="images/logo.png" alt="Jersey Met Logo" width="200">
+  
   [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 </div>
 
