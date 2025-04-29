@@ -3,12 +3,13 @@
     "step": {
       "user": {
         "title": "Jersey Weather",
-        "description": "Set up Jersey Weather integration. No configuration needed."
+        "description": "Set up Jersey Weather integration to monitor weather conditions in Jersey."
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect to the Jersey Weather API. Please try again later.",
-      "unknown": "Unexpected error. Please check the logs for details."
+      "cannot_connect": "Failed to connect to the Jersey Weather API. Please check your internet connection and try again.",
+      "invalid_data": "The API returned invalid data. The service might be temporarily unavailable.",
+      "unknown": "Unexpected error occurred. Please check the logs for more details."
     },
     "abort": {
       "already_configured": "Jersey Weather is already configured"

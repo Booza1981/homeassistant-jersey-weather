@@ -1,5 +1,7 @@
 # Jersey Weather Integration for Home Assistant
 
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+
 This custom integration fetches weather data from the Jersey Met service and makes it available in Home Assistant.
 
 ## Features
@@ -12,46 +14,51 @@ This custom integration fetches weather data from the Jersey Met service and mak
 
 ## Installation
 
+### HACS Installation (Recommended)
+
+1. Make sure [HACS](https://hacs.xyz/) is installed in your Home Assistant instance.
+2. Navigate to HACS → Integrations → ⋮ (three dots in top right) → Custom repositories
+3. Add `https://github.com/Booza1981/homeassistant-jersey-weather` as a custom repository with category "Integration"
+4. Click "Download" on the Jersey Weather integration
+5. Restart Home Assistant
+6. Add the integration from the Integrations page in Home Assistant
+
 ### Manual Installation
 
 1. Copy the `custom_components/jersey_weather` directory to your Home Assistant `/config/custom_components` directory.
 2. Restart Home Assistant.
-3. Go to "Configuration" -> "Integrations" and click "+ Add Integration".
+3. Go to "Configuration" → "Integrations" and click "+ Add Integration".
 4. Search for "Jersey Weather" and follow the setup instructions.
 
-### HACS Installation
+## Configuration
 
-1. Open HACS in your Home Assistant instance.
-2. Click on "Integrations".
-3. Click the three dots in the top right corner and choose "Custom repositories".
-4. Add the URL of this repository and select "Integration" as the category.
-5. Click "Add".
-6. Search for "Jersey Weather" in the Integrations tab.
-7. Click "Install" and restart Home Assistant.
+This integration requires no configuration. Simply add it through the Home Assistant UI, and it will automatically fetch data from the Jersey Weather API.
 
-## Usage
+## Entities Created
 
-Once installed, the integration will create the following entities:
+This integration creates various entities to represent Jersey weather information:
 
 ### Sensors
-- Current temperature
-- Wind direction
-- Wind speed
-- UV index
-- Weather condition
-- Sunrise/sunset times
-- Tide information (high/low, times, heights)
+- `sensor.current_temperature`: Current temperature in Jersey
+- `sensor.wind_speed`: Current wind speed
+- `sensor.wind_direction`: Current wind direction
+- `sensor.uv_index`: Current UV index
+- `sensor.weather_condition`: Current weather condition
+- `sensor.sunrise`: Today's sunrise time
+- `sensor.sunset`: Today's sunset time
+- `sensor.tide_1` through `sensor.tide_4`: Today's tide information (high/low, times, heights)
 
 ### Weather Entity
-A complete weather entity with current conditions and 5-day forecast.
+- `weather.jersey_weather`: A complete weather entity with current conditions and 5-day forecast
 
 ### Cameras
-- Radar image
-- Satellite image
-- Wind waves
-- Sea state (AM and PM)
+- `camera.jersey_weather_radar`: Radar image
+- `camera.jersey_weather_satellite`: Satellite image
+- `camera.jersey_weather_wind_waves`: Wind waves image
+- `camera.jersey_weather_sea_state_am`: Sea state AM image
+- `camera.jersey_weather_sea_state_pm`: Sea state PM image
 
-## Development
+## API Information
 
 This integration uses data from the Jersey Met service API endpoints:
 
@@ -59,10 +66,18 @@ This integration uses data from the Jersey Met service API endpoints:
 - Tide data: `https://prodgojweatherstorage.blob.core.windows.net/data/JerseyTide5Day.json`
 - Weather images: Various endpoints under `https://sojpublicdata.blob.core.windows.net/jerseymet/`
 
+## Troubleshooting
+
+If you encounter issues with the integration:
+
+1. Check that your Home Assistant instance has internet access
+2. Verify that the Jersey Weather API endpoints are accessible
+3. Check the Home Assistant logs for error messages from the `jersey_weather` component
+4. Make sure you've restarted Home Assistant after installation
+
 ## Credits
 
 - Data source: Jersey Met service (Government of Jersey)
-- Integration developed by [Your Name]
 
 ## License
 

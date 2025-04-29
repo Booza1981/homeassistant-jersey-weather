@@ -1,10 +1,12 @@
 {
   "domain": "jersey_weather",
   "name": "Jersey Weather",
-  "documentation": "https://github.com/yourusername/jersey_weather",
+  "documentation": "https://github.com/Booza1981/homeassistant-jersey-weather",
+  "issue_tracker": "https://github.com/Booza1981/homeassistant-jersey-weather/issues",
   "dependencies": [],
-  "codeowners": ["@yourusername"],
+  "codeowners": ["@Booza1981"],
   "requirements": [],
   "iot_class": "cloud_polling",
-  "version": "0.1.0"
+  "version": "1.0.0",
+  "config_flow": true
 }
