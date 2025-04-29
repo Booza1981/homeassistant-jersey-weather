@@ -20,7 +20,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util.dt import parse_datetime
 
-from .const import CONDITION_MAPPINGS, DOMAIN
+from .const import CONDITION_MAPPINGS, TOOLTIP_CONDITION_MAPPINGS, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,15 +60,38 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             "configuration_url": "https://www.gov.je/weather/"
         }
         self._attr_attribution = "Weather data provided by Jersey Met"
-        _LOGGER.debug("Initialized weather entity with coordinator data: %s", 
+        # Explicitly set supported features again to ensure it's recognized
+        self._attr_supported_features = WeatherEntityFeature.FORECAST_DAILY
+        _LOGGER.debug("Initialized Jersey Weather entity with coordinator data: %s", 
                      "available" if coordinator.data else "not available")
 
     @property
     def available(self) -> bool:
         """Return if weather data is available."""
         if not self.coordinator.data:
+            _LOGGER.debug("No coordinator data available")
             return False
-        return "forecast" in self.coordinator.data
+        
+        has_forecast = "forecast" in self.coordinator.data
+        
+        if not has_forecast:
+            _LOGGER.debug("No forecast data in coordinator data")
+        else:
+            # Check if we have forecast days
+            has_days = "forecastDay" in self.coordinator.data.get("forecast", {})
+            if not has_days:
+                _LOGGER.debug("No forecastDay in forecast data")
+                return False
+                
+            # Check if we have at least one day
+            days = self.coordinator.data["forecast"].get("forecastDay", [])
+            if not days:
+                _LOGGER.debug("No days in forecastDay array")
+                return False
+                
+            _LOGGER.debug("Weather data available with %d forecast days", len(days))
+            
+        return has_forecast
 
     @property
     def condition(self) -> str | None:
@@ -77,13 +100,29 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             return None
             
         try:
-            # Get the icon for today
+            # Get the icon and tooltip for today
             icon = self.coordinator.data["forecast"]["forecastDay"][0].get("dayIcon")
+            tooltip = self.coordinator.data["forecast"]["forecastDay"][0].get("dayToolTip")
             
-            # Map icon to HA condition
-            return CONDITION_MAPPINGS.get(icon, "cloudy")
+            _LOGGER.debug("Getting condition for current weather: icon=%s, tooltip=%s", 
+                         icon, tooltip)
+            
+            # Try to get condition from icon mapping first
+            condition = CONDITION_MAPPINGS.get(icon, None)
+            
+            # If condition is not found or icon is missing, try tooltip mapping
+            if condition is None and tooltip:
+                condition = TOOLTIP_CONDITION_MAPPINGS.get(tooltip, None)
+            
+            # Default to cloudy if we still don't have a condition
+            if condition is None:
+                condition = "cloudy"
+                _LOGGER.debug("Using default condition 'cloudy' for current weather")
+            
+            return condition
+            
         except (KeyError, IndexError) as e:
-            _LOGGER.error("Error getting condition: %s", e)
+            _LOGGER.error("Error getting current condition: %s", e)
             return None
 
     @property
@@ -142,11 +181,11 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             _LOGGER.error("Error getting wind bearing: %s", e)
             return None
 
-    @callback
-    def _async_forecast_daily(self) -> list[Forecast] | None:
+    @property
+    def forecast_daily(self) -> list[Forecast] | None:
         """Return the daily forecast in native units.
         
-        This method is called when a consumer is subscribing to forecast updates.
+        This property is the newer recommended approach in Home Assistant for daily forecasts.
         """
         if not self.available:
             _LOGGER.debug("No forecast data available")
@@ -161,45 +200,62 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
                 day_name = day.get("dayName", "").strip()
                 
                 # Parse date from day name and create proper datetime object
-                forecast_date = today
-                if day_index > 0:
-                    try:
-                        if day_name in ["Tonight", "Today"]:
-                            # Use today for "Tonight" or "Today"
-                            forecast_date = today
-                        else:
+                if day_index == 0 and day_name.lower() == "tonight":
+                    # For "Tonight", use today's date with evening time (8 PM)
+                    forecast_date = today.replace(hour=20, minute=0, second=0, microsecond=0)
+                    _LOGGER.debug("Using evening time for Tonight forecast: %s", forecast_date)
+                else:
+                    # For other days, try to extract date or use index-based approach
+                    forecast_date = None
+                    
+                    if day_name.lower() in ["today", "tonight"]:
+                        # Use today for "Today" or "Tonight"
+                        forecast_date = today.replace(hour=12, minute=0, second=0, microsecond=0)
+                    else:
+                        try:
                             # Try to extract date parts for other days (e.g., "Wed 30 Apr")
                             parts = day_name.split()
                             if len(parts) >= 3:
                                 # Handle day/month format
-                                day_num = int(parts[1])
-                                month_name = parts[2]
-                                # Convert month name to number
-                                months = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6, 
-                                        "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
-                                month_num = months.get(month_name, today.month)
-                                
-                                # Create date object at noon to avoid timezone issues
-                                forecast_date = today.replace(
-                                    day=day_num, 
-                                    month=month_num, 
-                                    hour=12, 
-                                    minute=0, 
-                                    second=0, 
-                                    microsecond=0
-                                )
-                                # If the date is in the past, it might be next year
-                                if forecast_date.date() < today.date():
-                                    forecast_date = forecast_date.replace(year=today.year + 1)
-                    except (ValueError, IndexError) as e:
-                        _LOGGER.debug("Could not parse date from day name %s: %s", day_name, e)
-                        # Use today plus day_index at noon time if parsing fails
+                                try:
+                                    day_num = int(parts[1])
+                                    month_name = parts[2]
+                                    # Convert month name to number
+                                    months = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6, 
+                                            "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
+                                    month_num = months.get(month_name, today.month)
+                                    
+                                    # Create date object at noon to avoid timezone issues
+                                    forecast_date = today.replace(
+                                        day=day_num, 
+                                        month=month_num, 
+                                        hour=12, 
+                                        minute=0, 
+                                        second=0, 
+                                        microsecond=0
+                                    )
+                                    # If the date is in the past, it might be next year
+                                    if forecast_date.date() < today.date():
+                                        forecast_date = forecast_date.replace(year=today.year + 1)
+                                        
+                                    _LOGGER.debug("Parsed date from %s: %s", day_name, forecast_date)
+                                except (ValueError, IndexError) as e:
+                                    _LOGGER.debug("Error parsing day/month from %s: %s", day_name, e)
+                                    forecast_date = None
+                        except Exception as e:
+                            _LOGGER.debug("General error parsing date %s: %s", day_name, e)
+                            forecast_date = None
+                    
+                    # If we couldn't parse a date, use the day index
+                    if forecast_date is None:
                         forecast_date = (today + timedelta(days=day_index)).replace(
                             hour=12, minute=0, second=0, microsecond=0
                         )
+                        _LOGGER.debug("Using index-based date for %s: %s", day_name, forecast_date)
 
                 # Format datetime in RFC 3339 format
-                iso_date = forecast_date.isoformat(timespec='seconds') + 'Z'  # UTC time
+                iso_date = forecast_date.isoformat()
+                _LOGGER.debug("Created ISO date for forecast: %s", iso_date)
                 
                 # Convert temperatures to float
                 try:
@@ -226,18 +282,40 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
                         wind_dir = day.get(dir_field)
                         break
                 
-                # Get condition from icon
+                # Get condition from icon with tooltip as fallback
                 icon = day.get("dayIcon", "")
-                condition = CONDITION_MAPPINGS.get(icon, "cloudy")
+                tooltip = day.get("dayToolTip", "")
+                
+                # Try to get condition from icon mapping first
+                condition = CONDITION_MAPPINGS.get(icon, None)
+                
+                # If condition is not found or icon is missing, try tooltip mapping
+                if condition is None and tooltip:
+                    condition = TOOLTIP_CONDITION_MAPPINGS.get(tooltip, None)
+                
+                # Default to cloudy if we still don't have a condition
+                if condition is None:
+                    condition = "cloudy"
+                    _LOGGER.debug("Using default condition 'cloudy' for icon=%s, tooltip=%s", 
+                                 icon, tooltip)
+                else:
+                    _LOGGER.debug("Mapped condition: %s from icon=%s, tooltip=%s", 
+                                 condition, icon, tooltip)
+                
+                # Get detailed weather description
+                summary = day.get("summary", "")
                 
                 # Get precipitation probability (default to highest of morning/afternoon/evening)
                 precip_prob = 0
                 for period in ["rainProbMorning", "rainProbAfternoon", "rainProbEvening"]:
                     try:
-                        prob = int(day.get(period, 0) or 0)
-                        precip_prob = max(precip_prob, prob)
-                    except (ValueError, TypeError):
-                        pass
+                        prob_str = day.get(period, "0")
+                        if prob_str and isinstance(prob_str, str):
+                            prob = int(prob_str)
+                            precip_prob = max(precip_prob, prob)
+                    except (ValueError, TypeError) as e:
+                        _LOGGER.debug("Error parsing precipitation probability %s: %s", 
+                                     day.get(period, ""), e)
                 
                 # Calculate wind bearing from direction
                 wind_bearing = None
@@ -250,7 +328,7 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
                     }
                     wind_bearing = direction_map.get(wind_dir)
                 
-                # Create forecast data dictionary
+                # Create forecast data dictionary with proper formatting
                 forecast_data = {
                     "datetime": iso_date,
                     "condition": condition,
@@ -264,10 +342,33 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
                 if wind_bearing is not None:
                     forecast_data["wind_bearing"] = wind_bearing
                 
-                # Add icon info
-                tooltip = day.get("dayToolTip")
-                if tooltip:
-                    forecast_data["icon_description"] = tooltip
+                # Add additional info for debugging and future use
+                day_description = []
+                if day.get("summary"):
+                    day_description.append(day.get("summary"))
+                if day.get("morningDescripiton"):  # Note: API has typo in key name
+                    day_description.append(f"Morning: {day.get('morningDescripiton')}")
+                if day.get("afternoonDescripiton"):  # Note: API has typo in key name
+                    day_description.append(f"Afternoon: {day.get('afternoonDescripiton')}")
+                if day.get("nightDescripiton"):  # Note: API has typo in key name
+                    day_description.append(f"Night: {day.get('nightDescripiton')}")
+                
+                if day_description:
+                    forecast_data["icon_description"] = " ".join(day_description)
+                
+                # Add sunrise/sunset times if available
+                if day.get("sunRise"):
+                    forecast_data["sunrise"] = day.get("sunRise")
+                if day.get("sunSet"):
+                    forecast_data["sunset"] = day.get("sunSet")
+                    
+                # Add UV index if available
+                if day.get("uvIndex"):
+                    try:
+                        uv_index = int(day.get("uvIndex", "0"))
+                        forecast_data["uv_index"] = uv_index
+                    except (ValueError, TypeError):
+                        pass
                 
                 forecast_list.append(forecast_data)
                 

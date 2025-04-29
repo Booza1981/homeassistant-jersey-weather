@@ -22,7 +22,7 @@ ATTR_WIND_SPEED_KNOTS = "wind_speed_knots"
 ATTR_RAIN_PROBABILITY = "rain_probability"
 ATTR_UV_INDEX = "uv_index"
 
-# Weather condition mappings
+# Weather condition mappings from Jersey Weather icons to Home Assistant conditions
 CONDITION_MAPPINGS = {
     "a.svg": "sunny",
     "b.svg": "partlycloudy",
@@ -36,4 +36,17 @@ CONDITION_MAPPINGS = {
     "j.svg": "lightning-rainy",
     "k.svg": "snowy",
     "l.svg": "snowy-rainy",
+}
+
+# Tooltip to condition mappings as fallbacks
+TOOLTIP_CONDITION_MAPPINGS = {
+    "Clear": "clear-night",
+    "Fine": "clear-night",
+    "Sunny": "sunny",
+    "Sunny periods": "partlycloudy",
+    "Mainly sunny": "partlycloudy",
+    "Sunshine and showers": "rainy",
+    "Cloudy": "cloudy",
+    "Fog": "fog",
+    "Mist": "fog",
 }
