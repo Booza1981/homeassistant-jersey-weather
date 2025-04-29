@@ -20,7 +20,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util.dt import parse_datetime
 
-from .const import CONDITION_MAPPINGS, TOOLTIP_CONDITION_MAPPINGS, DOMAIN
+from .const import CONDITION_MAPPINGS, TOOLTIP_CONDITION_MAPPINGS, SUMMARY_CONDITION_MAPPINGS, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -66,7 +66,9 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             "sw_version": "1.0",
             "configuration_url": "https://www.gov.je/weather/"
         }
-        self._attr_attribution = "Weather data provided by Jersey Met"
+        # Set attribution with timestamp to make it more helpful in the UI
+        timestamp = datetime.now().strftime("%H:%M")
+        self._attr_attribution = f"Weather data from Jersey Met - Updated at {timestamp}"
         # Explicitly set supported features again to ensure it's recognized
         self._attr_supported_features = WeatherEntityFeature.FORECAST_DAILY
         _LOGGER.debug("Initialized Jersey Weather entity with coordinator data: %s", 
@@ -106,6 +108,63 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
         if not self.available:
             return None
             
+        try:
+            # Get the icon and tooltip for today
+            icon = self.coordinator.data["forecast"]["forecastDay"][0].get("dayIcon")
+            tooltip = self.coordinator.data["forecast"]["forecastDay"][0].get("dayToolTip")
+            
+            _LOGGER.debug("Getting condition for current weather: icon=%s, tooltip=%s", 
+                         icon, tooltip)
+            
+            # Try to get condition from icon mapping first
+            condition = CONDITION_MAPPINGS.get(icon, None)
+            
+            # If condition is not found or icon is missing, try tooltip mapping
+            if condition is None and tooltip:
+                condition = TOOLTIP_CONDITION_MAPPINGS.get(tooltip, None)
+            
+            # Check current time to determine day/night conditions
+            current_hour = datetime.now().hour
+            is_night = current_hour < 6 or current_hour >= 20
+            
+            # Determine appropriate condition based on time of day and other factors
+            if condition is None:
+                # Try to infer condition from summary and descriptions
+                summary = self.coordinator.data["forecast"]["forecastDay"][0].get("summary", "")
+                night_desc = self.coordinator.data["forecast"]["forecastDay"][0].get("nightDescripiton", "")
+                morning_desc = self.coordinator.data["forecast"]["forecastDay"][0].get("morningDescripiton", "")
+                afternoon_desc = self.coordinator.data["forecast"]["forecastDay"][0].get("afternoonDescripiton", "")
+                
+                # Look for key terms in all descriptions
+                desc_text = (summary + " " + night_desc + " " + morning_desc + " " + afternoon_desc).lower()
+                
+                # Try to find matches in summary mappings
+                for key, value in SUMMARY_CONDITION_MAPPINGS.items():
+                    if key in desc_text:
+                        if is_night and value == "sunny":
+                            condition = "clear-night"
+                        else:
+                            condition = value
+                        _LOGGER.debug("Found condition %s from keyword %s in descriptions", condition, key)
+                        break
+                
+                # If still no condition, use time-appropriate defaults
+                if condition is None:
+                    if is_night:
+                        condition = "clear-night"
+                    else:
+                        condition = "sunny"
+            
+            # Make sure night conditions are used at night
+            elif is_night and condition == "sunny":
+                condition = "clear-night"
+            
+            _LOGGER.debug("Final condition: %s", condition)
+            return condition
+            
+        except (KeyError, IndexError) as e:
+            _LOGGER.error("Error getting current condition: %s", e)
+            return "cloudy"  # Return a safe default
     # Method 2: Callback implementation - this was working in the previous PR
     @callback
     def _async_forecast_daily(self) -> list[Forecast] | None:
@@ -144,32 +203,6 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
         except Exception as e:
             _LOGGER.error("Error in async_forecast_daily: %s", e)
             return None
-            
-        try:
-            # Get the icon and tooltip for today
-            icon = self.coordinator.data["forecast"]["forecastDay"][0].get("dayIcon")
-            tooltip = self.coordinator.data["forecast"]["forecastDay"][0].get("dayToolTip")
-            
-            _LOGGER.debug("Getting condition for current weather: icon=%s, tooltip=%s", 
-                         icon, tooltip)
-            
-            # Try to get condition from icon mapping first
-            condition = CONDITION_MAPPINGS.get(icon, None)
-            
-            # If condition is not found or icon is missing, try tooltip mapping
-            if condition is None and tooltip:
-                condition = TOOLTIP_CONDITION_MAPPINGS.get(tooltip, None)
-            
-            # Default to cloudy if we still don't have a condition
-            if condition is None:
-                condition = "cloudy"
-                _LOGGER.debug("Using default condition 'cloudy' for current weather")
-            
-            return condition
-            
-        except (KeyError, IndexError) as e:
-            _LOGGER.error("Error getting current condition: %s", e)
-            return None
 
     @property
     def native_temperature(self) -> float | None:
@@ -189,9 +222,26 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             
     @property
     def humidity(self) -> int | None:
-        """Return the humidity."""
-        # Not provided by the API, but required by some cards
-        return None
+        """Return the humidity.
+        
+        This is not directly provided by the API, but we can estimate from conditions.
+        """
+        if not self.available:
+            return None
+            
+        # Use fixed humidity values based on conditions for better UI display
+        try:
+            condition = self.condition
+            if condition in ["sunny", "clear-night"]:
+                return 50  # Lower humidity estimate for clear conditions
+            elif condition in ["partlycloudy"]:
+                return 60  # Medium humidity for partly cloudy
+            elif condition in ["rainy", "pouring"]:
+                return 85  # High humidity for rain
+            else:
+                return 70  # Default medium-high humidity
+        except Exception:
+            return 60  # Default value
             
     @property
     def native_wind_speed(self) -> float | None:
@@ -203,6 +253,17 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             return float(self.coordinator.data["forecast"]["forecastDay"][0].get("windSpeedKM", 0))
         except (KeyError, IndexError, ValueError) as e:
             _LOGGER.error("Error getting wind speed: %s", e)
+            return None
+
+    @property
+    def uv_index(self) -> int | None:
+        """Return the UV index."""
+        if not self.available:
+            return None
+        
+        try:
+            return int(self.coordinator.data["forecast"]["forecastDay"][0].get("uvIndex", 0))
+        except (ValueError, TypeError):
             return None
 
     @property

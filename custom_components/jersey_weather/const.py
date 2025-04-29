@@ -38,7 +38,7 @@ CONDITION_MAPPINGS = {
     "l.svg": "snowy-rainy",
 }
 
-# Tooltip to condition mappings as fallbacks
+# Tooltip to condition mappings as fallbacks - mapping from tooltip text to HA condition
 TOOLTIP_CONDITION_MAPPINGS = {
     "Clear": "clear-night",
     "Fine": "clear-night",
@@ -47,6 +47,39 @@ TOOLTIP_CONDITION_MAPPINGS = {
     "Mainly sunny": "partlycloudy",
     "Sunshine and showers": "rainy",
     "Cloudy": "cloudy",
+    "Fair": "clear-night",
     "Fog": "fog",
     "Mist": "fog",
+    "Hazy sunshine": "partlycloudy",
+    "Sunny intervals": "partlycloudy",
+    "Bright": "partlycloudy",
+    "Light rain": "rainy",
+    "Showers": "rainy",
+    "Heavy rain": "pouring",
+    "Drizzle": "rainy",
+    "Rain": "rainy",
+    "Snow": "snowy",
+    "Sleet": "snowy-rainy",
+    "Thunderstorm": "lightning-rainy",
+    "Thunder": "lightning",
+}
+
+# Summary condition mappings for inferring conditions from summary text
+SUMMARY_CONDITION_MAPPINGS = {
+    "sunny": "sunny",
+    "clear": "clear-night",
+    "fine": "clear-night",
+    "cloud": "cloudy",
+    "fog": "fog",
+    "mist": "fog",
+    "rain": "rainy",
+    "shower": "rainy",
+    "thunder": "lightning-rainy",
+    "snow": "snowy",
+    "sleet": "snowy-rainy",
+    "hail": "hail",
+    "lightning": "lightning",
+    "storm": "lightning-rainy",
+    "drizzle": "rainy",
+    "overcast": "cloudy",
 }
