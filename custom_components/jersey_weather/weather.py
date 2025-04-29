@@ -33,7 +33,14 @@ async def async_setup_entry(
     _LOGGER.debug("Setting up weather platform with coordinator data: %s", 
                   "available" if coordinator.data else "not available")
     
-    async_add_entities([JerseyWeather(coordinator)])
+    # Create the weather entity
+    weather_entity = JerseyWeather(coordinator)
+    
+    # Log the supported features
+    _LOGGER.debug("Weather entity created with supported features: %s", 
+                 weather_entity._attr_supported_features)
+                 
+    async_add_entities([weather_entity])
 
 
 class JerseyWeather(CoordinatorEntity, WeatherEntity):
@@ -97,6 +104,45 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
     def condition(self) -> str | None:
         """Return the current weather condition."""
         if not self.available:
+            return None
+            
+    # Method 2: Callback implementation - this was working in the previous PR
+    @callback
+    def _async_forecast_daily(self) -> list[Forecast] | None:
+        """Return the daily forecast in native units using the callback method.
+        
+        This was the method used in the previous PR.
+        """
+        _LOGGER.debug("_async_forecast_daily callback was called by Home Assistant")
+        
+        try:
+            if not self.available:
+                _LOGGER.debug("No forecast data available")
+                return None
+                
+            # Just call our property implementation to avoid duplicating code
+            return self.forecast_daily
+        except Exception as e:
+            _LOGGER.error("Error in _async_forecast_daily: %s", e)
+            return None
+    
+    # Method 3: Async method implementation
+    async def async_forecast_daily(self) -> list[Forecast] | None:
+        """Return the daily forecast in native units using an async method.
+        
+        This is another approach that might be what Home Assistant expects.
+        """
+        _LOGGER.debug("async_forecast_daily method was called by Home Assistant")
+        
+        try:
+            if not self.available:
+                _LOGGER.debug("No forecast data available")
+                return None
+                
+            # Just call our property implementation to avoid duplicating code
+            return self.forecast_daily
+        except Exception as e:
+            _LOGGER.error("Error in async_forecast_daily: %s", e)
             return None
             
         try:
@@ -181,12 +227,16 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             _LOGGER.error("Error getting wind bearing: %s", e)
             return None
 
+    # Method 1: Property implementation
     @property
     def forecast_daily(self) -> list[Forecast] | None:
         """Return the daily forecast in native units.
         
         This property is the newer recommended approach in Home Assistant for daily forecasts.
         """
+        _LOGGER.debug("forecast_daily property was called by Home Assistant")
+        
+        try:
         if not self.available:
             _LOGGER.debug("No forecast data available")
             return None
@@ -373,8 +423,16 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
                 forecast_list.append(forecast_data)
                 
             _LOGGER.debug("Generated forecast data with %d days", len(forecast_list))
+            
+            # Log the first forecast entry for debugging
+            if forecast_list:
+                _LOGGER.debug("First forecast entry: %s", forecast_list[0])
+                
             return forecast_list
                     
         except (KeyError, ValueError) as e:
             _LOGGER.error("Error parsing forecast data: %s", e)
+            return None
+        except Exception as e:
+            _LOGGER.error("Unexpected error in forecast_daily: %s", e, exc_info=True)
             return None
