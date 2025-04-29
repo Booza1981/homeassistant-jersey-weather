@@ -1,18 +1,9 @@
 """Weather platform for Jersey Weather integration."""
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 from homeassistant.components.weather import (
-    ATTR_FORECAST_CLOUD_COVERAGE,
-    ATTR_FORECAST_CONDITION,
-    ATTR_FORECAST_NATIVE_PRECIPITATION,
-    ATTR_FORECAST_NATIVE_TEMP,
-    ATTR_FORECAST_NATIVE_TEMP_LOW,
-    ATTR_FORECAST_NATIVE_WIND_SPEED,
-    ATTR_FORECAST_PRECIPITATION_PROBABILITY,
-    ATTR_FORECAST_TIME,
-    ATTR_FORECAST_WIND_BEARING,
     Forecast,
     WeatherEntity,
     WeatherEntityFeature,
@@ -151,49 +142,64 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             _LOGGER.error("Error getting wind bearing: %s", e)
             return None
 
-    @property
-    def forecast(self) -> list[Forecast] | None:
-        """Return the forecast array."""
+    @callback
+    def _async_forecast_daily(self) -> list[Forecast] | None:
+        """Return the daily forecast in native units.
+        
+        This method is called when a consumer is subscribing to forecast updates.
+        """
         if not self.available:
             _LOGGER.debug("No forecast data available")
             return None
         
         forecast_list = []
-        day_names = {"Tonight": "Tonight", "Today": "Today"}
         
         try:
-            today = datetime.now().date()
+            today = datetime.now()
             
             for day_index, day in enumerate(self.coordinator.data["forecast"]["forecastDay"]):
                 day_name = day.get("dayName", "").strip()
                 
-                # Parse date from day name if possible (e.g., "Wed 30 Apr", "Thu 1 May")
-                date_obj = today
+                # Parse date from day name and create proper datetime object
+                forecast_date = today
                 if day_index > 0:
                     try:
-                        # Try to extract date parts
-                        parts = day_name.split()
-                        if len(parts) >= 3:
-                            # Handle day/month format
-                            day_num = int(parts[1])
-                            month_name = parts[2]
-                            # Convert month name to number
-                            months = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6, 
-                                    "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
-                            month_num = months.get(month_name, today.month)
-                            
-                            # Create date object
-                            date_obj = today.replace(day=day_num, month=month_num)
-                            # If the date is in the past, it might be next year
-                            if date_obj < today:
-                                date_obj = date_obj.replace(year=today.year + 1)
+                        if day_name in ["Tonight", "Today"]:
+                            # Use today for "Tonight" or "Today"
+                            forecast_date = today
+                        else:
+                            # Try to extract date parts for other days (e.g., "Wed 30 Apr")
+                            parts = day_name.split()
+                            if len(parts) >= 3:
+                                # Handle day/month format
+                                day_num = int(parts[1])
+                                month_name = parts[2]
+                                # Convert month name to number
+                                months = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6, 
+                                        "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
+                                month_num = months.get(month_name, today.month)
+                                
+                                # Create date object at noon to avoid timezone issues
+                                forecast_date = today.replace(
+                                    day=day_num, 
+                                    month=month_num, 
+                                    hour=12, 
+                                    minute=0, 
+                                    second=0, 
+                                    microsecond=0
+                                )
+                                # If the date is in the past, it might be next year
+                                if forecast_date.date() < today.date():
+                                    forecast_date = forecast_date.replace(year=today.year + 1)
                     except (ValueError, IndexError) as e:
                         _LOGGER.debug("Could not parse date from day name %s: %s", day_name, e)
-                        # Use today plus day_index if parsing fails
-                        date_obj = today + timedelta(days=day_index)
+                        # Use today plus day_index at noon time if parsing fails
+                        forecast_date = (today + timedelta(days=day_index)).replace(
+                            hour=12, minute=0, second=0, microsecond=0
+                        )
 
-                # Format the ISO date for the forecast
-                iso_date = date_obj.isoformat()
+                # Format datetime in RFC 3339 format
+                iso_date = forecast_date.isoformat(timespec='seconds') + 'Z'  # UTC time
                 
                 # Convert temperatures to float
                 try:
@@ -203,11 +209,22 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
                     max_temp = 0
                     min_temp = 0
                     
-                # Convert wind speed to float
-                try:
-                    wind_speed = float(day.get("windSpeedKM", 0))
-                except (ValueError, TypeError):
-                    wind_speed = 0
+                # Get windspeed - try several fields based on order of preference
+                wind_speed = 0
+                for wind_field in ["windspeedKMAfternoon", "windspeedKMMorning", "windspeedKMEvening"]:
+                    try:
+                        if day.get(wind_field):
+                            wind_speed = float(day.get(wind_field, 0))
+                            break
+                    except (ValueError, TypeError):
+                        pass
+                
+                # Get wind direction - try several fields
+                wind_dir = None
+                for dir_field in ["windDirectionAfternoon", "windDirectionMorning", "windDirectionEvening"]:
+                    if day.get(dir_field):
+                        wind_dir = day.get(dir_field)
+                        break
                 
                 # Get condition from icon
                 icon = day.get("dayIcon", "")
@@ -222,31 +239,35 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
                     except (ValueError, TypeError):
                         pass
                 
-                # Get wind bearing
-                wind_dir = day.get("windDirection", "")
+                # Calculate wind bearing from direction
                 wind_bearing = None
-                direction_map = {
-                    "N": 0, "NNE": 22.5, "NE": 45, "ENE": 67.5, 
-                    "E": 90, "ESE": 112.5, "SE": 135, "SSE": 157.5,
-                    "S": 180, "SSW": 202.5, "SW": 225, "WSW": 247.5,
-                    "W": 270, "WNW": 292.5, "NW": 315, "NNW": 337.5
-                }
-                if wind_dir in direction_map:
-                    wind_bearing = direction_map[wind_dir]
+                if wind_dir:
+                    direction_map = {
+                        "N": 0, "NNE": 22.5, "NE": 45, "ENE": 67.5, 
+                        "E": 90, "ESE": 112.5, "SE": 135, "SSE": 157.5,
+                        "S": 180, "SSW": 202.5, "SW": 225, "WSW": 247.5,
+                        "W": 270, "WNW": 292.5, "NW": 315, "NNW": 337.5
+                    }
+                    wind_bearing = direction_map.get(wind_dir)
                 
-                # Create forecast object
+                # Create forecast data dictionary
                 forecast_data = {
-                    ATTR_FORECAST_TIME: iso_date,
-                    ATTR_FORECAST_CONDITION: condition,
-                    ATTR_FORECAST_NATIVE_TEMP: max_temp,
-                    ATTR_FORECAST_NATIVE_TEMP_LOW: min_temp,
-                    ATTR_FORECAST_NATIVE_WIND_SPEED: wind_speed,
-                    ATTR_FORECAST_PRECIPITATION_PROBABILITY: precip_prob,
+                    "datetime": iso_date,
+                    "condition": condition,
+                    "native_temperature": max_temp,
+                    "native_templow": min_temp,
+                    "native_wind_speed": wind_speed,
+                    "precipitation_probability": precip_prob
                 }
                 
                 # Add wind bearing if available
                 if wind_bearing is not None:
-                    forecast_data[ATTR_FORECAST_WIND_BEARING] = wind_bearing
+                    forecast_data["wind_bearing"] = wind_bearing
+                
+                # Add icon info
+                tooltip = day.get("dayToolTip")
+                if tooltip:
+                    forecast_data["icon_description"] = tooltip
                 
                 forecast_list.append(forecast_data)
                 
