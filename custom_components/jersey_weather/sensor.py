@@ -2,17 +2,14 @@
 import logging
 from datetime import datetime
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.const import (
-    TEMP_CELSIUS,
-    TEMP_FAHRENHEIT,
-    UnitOfLength,
+    UnitOfTemperature,
     UnitOfSpeed,
-    UnitOfTime,
 )
 
 from .const import (
@@ -36,6 +33,9 @@ async def async_setup_entry(
     """Set up Jersey Weather sensors based on a config entry."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
     
+    _LOGGER.debug("Setting up sensors with coordinator data: %s", 
+                 "available" if coordinator.data else "not available")
+    
     sensors = []
     
     # Current Weather Sensors
@@ -51,6 +51,7 @@ async def async_setup_entry(
     for i in range(4):  # Usually 4 tide events per day
         sensors.append(JerseyTideSensor(coordinator, i))
     
+    _LOGGER.debug("Adding %d sensors", len(sensors))
     async_add_entities(sensors)
 
 
@@ -76,7 +77,7 @@ class JerseyWeatherSensorBase(CoordinatorEntity, SensorEntity):
         """Return if entity is available."""
         if not self.coordinator.data:
             return False
-        return self.coordinator.data.get("forecast") is not None
+        return "forecast" in self.coordinator.data
 
 
 class JerseyCurrentTemperatureSensor(JerseyWeatherSensorBase):
@@ -86,7 +87,8 @@ class JerseyCurrentTemperatureSensor(JerseyWeatherSensorBase):
         """Initialize the sensor."""
         super().__init__(coordinator, "current_temperature")
         self._attr_name = "Current Temperature"
-        self._attr_native_unit_of_measurement = TEMP_CELSIUS
+        self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+        self._attr_device_class = SensorDeviceClass.TEMPERATURE
         
     @property
     def native_value(self):
@@ -102,6 +104,7 @@ class JerseyCurrentTemperatureSensor(JerseyWeatherSensorBase):
         try:
             return float(temp_str.replace("°C", ""))
         except (ValueError, TypeError):
+            _LOGGER.error("Error parsing temperature: %s", temp_str)
             return None
             
     @property
@@ -135,7 +138,8 @@ class JerseyWindDirectionSensor(JerseyWeatherSensorBase):
         try:
             # Get today's forecast (first in the list)
             return self.coordinator.data["forecast"]["forecastDay"][0].get("windDirection")
-        except (KeyError, IndexError):
+        except (KeyError, IndexError) as e:
+            _LOGGER.error("Error getting wind direction: %s", e)
             return None
 
 
@@ -147,6 +151,7 @@ class JerseyWindSpeedSensor(JerseyWeatherSensorBase):
         super().__init__(coordinator, "wind_speed")
         self._attr_name = "Wind Speed"
         self._attr_native_unit_of_measurement = UnitOfSpeed.KILOMETERS_PER_HOUR
+        self._attr_device_class = SensorDeviceClass.WIND_SPEED
         
     @property
     def native_value(self):
@@ -157,7 +162,8 @@ class JerseyWindSpeedSensor(JerseyWeatherSensorBase):
         try:
             # Get today's forecast (first in the list)
             return float(self.coordinator.data["forecast"]["forecastDay"][0].get("windSpeedKM", 0))
-        except (KeyError, IndexError, ValueError):
+        except (KeyError, IndexError, ValueError) as e:
+            _LOGGER.error("Error getting wind speed: %s", e)
             return None
             
     @property
@@ -174,7 +180,8 @@ class JerseyWindSpeedSensor(JerseyWeatherSensorBase):
                 ATTR_WIND_SPEED_MPH: today.get("windSpeedMPH"),
                 ATTR_WIND_SPEED_KNOTS: today.get("windSpeedKnots")
             }
-        except (KeyError, IndexError):
+        except (KeyError, IndexError) as e:
+            _LOGGER.error("Error getting wind speed attributes: %s", e)
             return {}
 
 
@@ -195,7 +202,8 @@ class JerseyUVIndexSensor(JerseyWeatherSensorBase):
         try:
             # Get today's forecast (first in the list)
             return int(self.coordinator.data["forecast"]["forecastDay"][0].get("uvIndex", 0))
-        except (KeyError, IndexError, ValueError):
+        except (KeyError, IndexError, ValueError) as e:
+            _LOGGER.error("Error getting UV index: %s", e)
             return None
 
 
@@ -216,7 +224,8 @@ class JerseyWeatherConditionSensor(JerseyWeatherSensorBase):
         try:
             # Get today's forecast (first in the list)
             return self.coordinator.data["forecast"]["forecastDay"][0].get("summary")
-        except (KeyError, IndexError):
+        except (KeyError, IndexError) as e:
+            _LOGGER.error("Error getting weather condition: %s", e)
             return None
             
     @property
@@ -237,7 +246,8 @@ class JerseyWeatherConditionSensor(JerseyWeatherSensorBase):
                     "evening": today.get("rainProbEvening"),
                 }
             }
-        except (KeyError, IndexError):
+        except (KeyError, IndexError) as e:
+            _LOGGER.error("Error getting weather condition attributes: %s", e)
             return {}
 
 
@@ -258,7 +268,8 @@ class JerseySunriseSensor(JerseyWeatherSensorBase):
         try:
             # Get today's forecast (first in the list)
             return self.coordinator.data["forecast"]["forecastDay"][0].get("sunRise")
-        except (KeyError, IndexError):
+        except (KeyError, IndexError) as e:
+            _LOGGER.error("Error getting sunrise: %s", e)
             return None
 
 
@@ -279,7 +290,8 @@ class JerseySunsetSensor(JerseyWeatherSensorBase):
         try:
             # Get today's forecast (first in the list)
             return self.coordinator.data["forecast"]["forecastDay"][0].get("sunSet")
-        except (KeyError, IndexError):
+        except (KeyError, IndexError) as e:
+            _LOGGER.error("Error getting sunset: %s", e)
             return None
 
 
@@ -301,7 +313,8 @@ class JerseyTideSensor(JerseyWeatherSensorBase):
         try:
             # Get today's tides (first in the list)
             return self.coordinator.data["tide"][0]["TideTimes"][self._index].get("highLow")
-        except (KeyError, IndexError):
+        except (KeyError, IndexError) as e:
+            _LOGGER.error("Error getting tide info: %s", e)
             return None
             
     @property
@@ -318,5 +331,6 @@ class JerseyTideSensor(JerseyWeatherSensorBase):
                 "height_ft": tide_info.get("HeightinFeet"),
                 "date": self.coordinator.data["tide"][0].get("formattedDate")
             }
-        except (KeyError, IndexError):
+        except (KeyError, IndexError) as e:
+            _LOGGER.error("Error getting tide attributes: %s", e)
             return {}
