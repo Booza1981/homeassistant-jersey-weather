@@ -1,0 +1,39 @@
+"""Constants for the Jersey Weather integration."""
+
+DOMAIN = "jersey_weather"
+
+# API endpoints
+FORECAST_URL = "https://prodgojweatherstorage.blob.core.windows.net/data/jerseyForecast.json"
+TIDE_URL = "https://prodgojweatherstorage.blob.core.windows.net/data/JerseyTide5Day.json"
+RADAR_IMAGE_URL = "https://sojpublicdata.blob.core.windows.net/jerseymet/Radar10.JPG"
+SATELLITE_IMAGE_URL = "https://sojpublicdata.blob.core.windows.net/jerseymet/Satellite10.JPG"
+WIND_WAVES_IMAGE_URL = "https://sojpublicdata.blob.core.windows.net/jerseymet/Wind%20Waves%202018%2049.png"
+SEA_STATE_AM_IMAGE_URL = "https://sojpublicdata.blob.core.windows.net/jerseymet/Sea%20State/Sea%20State%20AM.png"
+SEA_STATE_PM_IMAGE_URL = "https://sojpublicdata.blob.core.windows.net/jerseymet/Sea%20State/Sea%20State%20PM.png"
+
+# Entity attributes
+ATTR_ISSUE_TIME = "issue_time"
+ATTR_FORECAST_DATE = "forecast_date"
+ATTR_WIND_DIRECTION = "wind_direction"
+ATTR_WIND_SPEED = "wind_speed"
+ATTR_WIND_SPEED_MPH = "wind_speed_mph"
+ATTR_WIND_SPEED_KM = "wind_speed_km"
+ATTR_WIND_SPEED_KNOTS = "wind_speed_knots"
+ATTR_RAIN_PROBABILITY = "rain_probability"
+ATTR_UV_INDEX = "uv_index"
+
+# Weather condition mappings
+CONDITION_MAPPINGS = {
+    "a.svg": "sunny",
+    "b.svg": "partlycloudy",
+    "c.svg": "clear-night",
+    "d.svg": "partlycloudy",
+    "e.svg": "cloudy",
+    "f.svg": "cloudy",
+    "g.svg": "fog",
+    "h.svg": "rainy",
+    "i.svg": "pouring",
+    "j.svg": "lightning-rainy",
+    "k.svg": "snowy",
+    "l.svg": "snowy-rainy",
+}

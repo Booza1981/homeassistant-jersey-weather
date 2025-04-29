@@ -1,0 +1,17 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Jersey Weather",
+        "description": "Set up Jersey Weather integration. No configuration needed."
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the Jersey Weather API. Please try again later.",
+      "unknown": "Unexpected error. Please check the logs for details."
+    },
+    "abort": {
+      "already_configured": "Jersey Weather is already configured"
+    }
+  }
+}

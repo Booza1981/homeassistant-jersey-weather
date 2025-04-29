@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jersey Weather API Documentation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3 {
+            color: #0066cc;
+        }
+        code {
+            background-color: #f5f5f5;
+            border-radius: 4px;
+            padding: 2px 5px;
+            font-family: monospace;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .endpoint {
+            background-color: #e6f3ff;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Jersey Weather API Documentation</h1>
+    
+    <p>This document provides information about the Jersey Weather API used by the Home Assistant integration.</p>
+    
+    <h2>API Endpoints</h2>
+    
+    <div class="endpoint">
+        <h3>Weather Forecast</h3>
+        <p><strong>URL:</strong> <code>https://prodgojweatherstorage.blob.core.windows.net/data/jerseyForecast.json</code></p>
+        <p><strong>Method:</strong> GET</p>
+        <p><strong>Description:</strong> Returns current weather conditions and a 5-day forecast for Jersey.</p>
+        <p><strong>Response Format:</strong> JSON</p>
+        <details>
+            <summary>Example Response</summary>
+            <pre>
+{
+  "currentTemprature": "18.2°C",
+  "currentTempratureFahrenheit": "65°F",
+  "issuetime": "17:30",
+  "cacheTime": "2025-04-29T19:30:00.0564822",
+  "forecastDate": "29 April 2025",
+  "forecastTime": "5:30 pm",
+  "Location": "Jersey",
+  "morningEvening": "Tonight",
+  "forecastDay": [
+    {
+      "summary": "Sunny.",
+      "morningDescripiton": "Sunny.",
+      "afternoonDescripiton": "Sunny and very warm.",
+      "nightDescripiton": "Clear.",
+      "frost": "",
+      "rainProbMorning": "0",
+      "rainProbAfternoon": "0",
+      "rainProbEvening": "0",
+      "windDirection": "ENE",
+      "windSpeed": "F4",
+      "windSpeedMPH": "15",
+      "windSpeedKM": "24",
+      "windSpeedKnots": "13",
+      "dayName": "Tonight",
+      "maxTemp": "24°C",
+      "maxTempFahrenheit": "75°F",
+      "minTemp": "13°C",
+      "minTempFahrenheit": "55°F",
+      "uvIndex": "4",
+      "sunRise": "05:50",
+      "sunSet": "20:22"
+    },
+    // Additional days...
+  ]
+}
+            </pre>
+        </details>
+    </div>
+    
+    <div class="endpoint">
+        <h3>Tide Information</h3>
+        <p><strong>URL:</strong> <code>https://prodgojweatherstorage.blob.core.windows.net/data/JerseyTide5Day.json</code></p>
+        <p><strong>Method:</strong> GET</p>
+        <p><strong>Description:</strong> Returns tide information for Jersey over a 5-day period.</p>
+        <p><strong>Response Format:</strong> JSON</p>
+        <details>
+            <summary>Example Response</summary>
+            <pre>
+[
+  {
+    "Date": "2025-04-29T00:00:00",
+    "formattedDate": "Tuesday 29 April",
+    "weekEnd": false,
+    "TideTimes": [
+      {
+        "Time": "02:38",
+        "Height": "0.7",
+        "HeightinFeet": "2.3",
+        "highLow": "Low water",
+        "highLowShort": "LW"
+      },
+      // Additional tide times...
+    ]
+  },
+  // Additional days...
+]
+            </pre>
+        </details>
+    </div>
+    
+    <div class="endpoint">
+        <h3>Weather Images</h3>
+        <p><strong>Description:</strong> The following endpoints provide weather-related images for Jersey.</p>
+        <table>
+            <tr>
+                <th>Image Type</th>
+                <th>URL</th>
+            </tr>
+            <tr>
+                <td>Radar</td>
+                <td><code>https://sojpublicdata.blob.core.windows.net/jerseymet/Radar10.JPG</code></td>
+            </tr>
+            <tr>
+                <td>Satellite</td>
+                <td><code>https://sojpublicdata.blob.core.windows.net/jerseymet/Satellite10.JPG</code></td>
+            </tr>
+            <tr>
+                <td>Wind Waves</td>
+                <td><code>https://sojpublicdata.blob.core.windows.net/jerseymet/Wind%20Waves%202018%2049.png</code></td>
+            </tr>
+            <tr>
+                <td>Sea State AM</td>
+                <td><code>https://sojpublicdata.blob.core.windows.net/jerseymet/Sea%20State/Sea%20State%20AM.png</code></td>
+            </tr>
+            <tr>
+                <td>Sea State PM</td>
+                <td><code>https://sojpublicdata.blob.core.windows.net/jerseymet/Sea%20State/Sea%20State%20PM.png</code></td>
+            </tr>
+        </table>
+        <p><strong>Method:</strong> GET</p>
+        <p><strong>Response Format:</strong> Image (JPG/PNG)</p>
+    </div>
+    
+    <h2>Data Structure</h2>
+    
+    <h3>Weather Forecast</h3>
+    <p>Main properties in the forecast response:</p>
+    
+    <table>
+        <tr>
+            <th>Property</th>
+            <th>Description</th>
+        </tr>
+        <tr>
+            <td>currentTemprature</td>
+            <td>Current temperature in Celsius</td>
+        </tr>
+        <tr>
+            <td>currentTempratureFahrenheit</td>
+            <td>Current temperature in Fahrenheit</td>
+        </tr>
+        <tr>
+            <td>issuetime</td>
+            <td>Time when the forecast was issued</td>
+        </tr>
+        <tr>
+            <td>forecastDate</td>
+            <td>Date of the forecast</td>
+        </tr>
+        <tr>
+            <td>Location</td>
+            <td>Location of the forecast</td>
+        </tr>
+        <tr>
+            <td>forecastDay</td>
+            <td>Array of forecast days</td>
+        </tr>
+    </table>
+    
+    <p>Each day in <code>forecastDay</code> contains:</p>
+    
+    <table>
+        <tr>
+            <th>Property</th>
+            <th>Description</th>
+        </tr>
+        <tr>
+            <td>summary</td>
+            <td>Brief summary of the weather</td>
+        </tr>
+        <tr>
+            <td>morningDescripiton</td>
+            <td>Description of morning weather</td>
+        </tr>
+        <tr>
+            <td>afternoonDescripiton</td>
+            <td>Description of afternoon weather</td>
+        </tr>
+        <tr>
+            <td>nightDescripiton</td>
+            <td>Description of night weather</td>
+        </tr>
+        <tr>
+            <td>rainProbMorning</td>
+            <td>Probability of rain in the morning (%)</td>
+        </tr>
+        <tr>
+            <td>rainProbAfternoon</td>
+            <td>Probability of rain in the afternoon (%)</td>
+        </tr>
+        <tr>
+            <td>rainProbEvening</td>
+            <td>Probability of rain in the evening (%)</td>
+        </tr>
+        <tr>
+            <td>windDirection</td>
+            <td>Wind direction (e.g., "ENE")</td>
+        </tr>
+        <tr>
+            <td>windSpeed</td>
+            <td>Wind speed in Beaufort scale (e.g., "F4")</td>
+        </tr>
+        <tr>
+            <td>windSpeedMPH</td>
+            <td>Wind speed in miles per hour</td>
+        </tr>
+        <tr>
+            <td>windSpeedKM</td>
+            <td>Wind speed in kilometers per hour</td>
+        </tr>
+        <tr>
+            <td>windSpeedKnots</td>
+            <td>Wind speed in knots</td>
+        </tr>
+        <tr>
+            <td>dayName</td>
+            <td>Name of the day</td>
+        </tr>
+        <tr>
+            <td>maxTemp</td>
+            <td>Maximum temperature in Celsius</td>
+        </tr>
+        <tr>
+            <td>minTemp</td>
+            <td>Minimum temperature in Celsius</td>
+        </tr>
+        <tr>
+            <td>uvIndex</td>
+            <td>UV index</td>
+        </tr>
+        <tr>
+            <td>sunRise</td>
+            <td>Sunrise time</td>
+        </tr>
+        <tr>
+            <td>sunSet</td>
+            <td>Sunset time</td>
+        </tr>
+    </table>
+    
+    <h3>Tide Information</h3>
+    <p>The tide response is an array of days, each containing:</p>
+    
+    <table>
+        <tr>
+            <th>Property</th>
+            <th>Description</th>
+        </tr>
+        <tr>
+            <td>Date</td>
+            <td>Date in ISO format</td>
+        </tr>
+        <tr>
+            <td>formattedDate</td>
+            <td>Human-readable date</td>
+        </tr>
+        <tr>
+            <td>weekEnd</td>
+            <td>Boolean indicating if it's a weekend</td>
+        </tr>
+        <tr>
+            <td>TideTimes</td>
+            <td>Array of tide events</td>
+        </tr>
+    </table>
+    
+    <p>Each tide event in <code>TideTimes</code> contains:</p>
+    
+    <table>
+        <tr>
+            <th>Property</th>
+            <th>Description</th>
+        </tr>
+        <tr>
+            <td>Time</td>
+            <td>Time of the tide event</td>
+        </tr>
+        <tr>
+            <td>Height</td>
+            <td>Height of the tide in meters</td>
+        </tr>
+        <tr>
+            <td>HeightinFeet</td>
+            <td>Height of the tide in feet</td>
+        </tr>
+        <tr>
+            <td>highLow</td>
+            <td>Whether it's high or low tide ("High water" or "Low water")</td>
+        </tr>
+        <tr>
+            <td>highLowShort</td>
+            <td>Short form of high/low tide ("HW" or "LW")</td>
+        </tr>
+    </table>
+    
+    <h2>Using the API</h2>
+    
+    <p>This API is publicly accessible with no authentication required. The data is updated regularly by the Jersey Met service.</p>
+    
+    <h3>Example Usage (JavaScript)</h3>
+    
+    <pre>
+async function getJerseyWeather() {
+  try {
+    const response = await fetch('https://prodgojweatherstorage.blob.core.windows.net/data/jerseyForecast.json');
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    const data = await response.json();
+    
+    console.log(`Current Temperature: ${data.currentTemprature}`);
+    console.log(`Weather Summary: ${data.forecastDay[0].summary}`);
+    
+    return data;
+  } catch (error) {
+    console.error(`Error fetching weather data: ${error}`);
+  }
+}
+
+getJerseyWeather();
+    </pre>
+    
+    <h3>Example Usage (Python)</h3>
+    
+    <pre>
+import requests
+import json
+
+def get_jersey_weather():
+    try:
+        response = requests.get('https://prodgojweatherstorage.blob.core.windows.net/data/jerseyForecast.json')
+        response.raise_for_status()  # Raise exception for HTTP errors
+        data = response.json()
+        
+        print(f"Current Temperature: {data['currentTemprature']}")
+        print(f"Weather Summary: {data['forecastDay'][0]['summary']}")
+        
+        return data
+    except requests.exceptions.RequestException as error:
+        print(f"Error fetching weather data: {error}")
+        return None
+
+if __name__ == "__main__":
+    get_jersey_weather()
+    </pre>
+    
+    <h2>Refresh Rate and Caching</h2>
+    
+    <p>The Jersey Weather API data is typically updated several times a day:</p>
+    
+    <ul>
+        <li>Forecast data is usually updated every 6-12 hours</li>
+        <li>Current temperature is updated more frequently (approximately hourly)</li>
+        <li>Tide information is updated daily</li>
+        <li>Weather images (radar, satellite) are updated approximately every 10-30 minutes</li>
+    </ul>
+    
+    <p>When implementing applications that use this API, it's recommended to:</p>
+    
+    <ul>
+        <li>Cache responses to reduce API load</li>
+        <li>Implement appropriate refresh intervals based on data type</li>
+        <li>Check the "cacheTime" field in the forecast data to determine when the data was last updated</li>
+    </ul>
+    
+    <h2>Error Handling</h2>
+    
+    <p>The API endpoints typically return HTTP 200 OK responses when successful. Error handling should account for:</p>
+    
+    <ul>
+        <li>Network connectivity issues</li>
+        <li>API availability (the endpoints might occasionally be unavailable during updates)</li>
+        <li>JSON parsing errors</li>
+    </ul>
+    
+    <h2>Notes and Limitations</h2>
+    
+    <ul>
+        <li>The API does not require authentication</li>
+        <li>There are no documented rate limits, but reasonable usage is recommended</li>
+        <li>The API structure might change without notice</li>
+        <li>Data is specific to Jersey and may not be applicable to other locations</li>
+        <li>The API does not provide historical data beyond the current 5-day forecast</li>
+    </ul>
+    
+    <hr>
+    
+    <p><em>This documentation is unofficial and was created through reverse engineering the Jersey Weather service API. It is not affiliated with or endorsed by the Government of Jersey or Jersey Met.</em></p>
+    
+</body>
+</html>

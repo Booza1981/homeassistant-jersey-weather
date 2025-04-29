@@ -1,0 +1,124 @@
+# Example configuration.yaml entry for Jersey Weather integration
+# This is primarily for reference - the integration is designed to be configured through the UI
+
+# Configuration for manual setup (if needed)
+# Note: Most users should use the UI configuration instead
+jersey_weather:
+
+# Example of how to customize entities
+customize:
+  weather.jersey_weather:
+    friendly_name: Jersey Met
+    icon: mdi:weather-partly-cloudy
+  
+  sensor.current_temperature:
+    friendly_name: Jersey Temperature
+    icon: mdi:thermometer
+  
+  sensor.uv_index:
+    friendly_name: Jersey UV Index
+    icon: mdi:weather-sunny-alert
+  
+  sensor.wind_speed:
+    friendly_name: Jersey Wind Speed
+    icon: mdi:weather-windy
+  
+  sensor.wind_direction:
+    friendly_name: Jersey Wind Direction
+    icon: mdi:compass
+
+# Example Lovelace UI configuration
+# Add this to your Lovelace dashboard configuration
+# Example cards that use the Jersey Weather integration
+
+# Weather card
+# type: weather-forecast
+# entity: weather.jersey_weather
+
+# Entities card for tides
+# type: entities
+# title: Jersey Tides
+# entities:
+#   - sensor.tide_1
+#   - sensor.tide_2
+#   - sensor.tide_3
+#   - sensor.tide_4
+
+# Picture entity card for radar image
+# type: picture-entity
+# entity: camera.jersey_weather_radar
+# camera_view: auto
+# show_state: false
+
+# Example automations
+
+# Send notification for high UV days
+automation:
+  - alias: "High UV Alert"
+    trigger:
+      platform: numeric_state
+      entity_id: sensor.uv_index
+      above: 5
+    condition:
+      condition: time
+      after: '08:00:00'
+      before: '10:00:00'
+    action:
+      service: notify.mobile_app
+      data:
+        title: "High UV Today"
+        message: "UV index is {{ states('sensor.uv_index') }} today. Don't forget sunscreen!"
+
+  - alias: "Morning Weather Report"
+    trigger:
+      platform: time
+      at: '07:00:00'
+    action:
+      service: notify.mobile_app
+      data:
+        title: "Jersey Weather Report"
+        message: >
+          Good morning! Today's forecast: {{ states('sensor.weather_condition') }}.
+          Temperature between {{ state_attr('weather.jersey_weather', 'forecast')[0].native_templow }}°C and 
+          {{ state_attr('weather.jersey_weather', 'forecast')[0].native_temperature }}°C.
+          {% if state_attr('weather.jersey_weather', 'forecast')[0].precipitation_probability > 30 %}
+          Rain probability: {{ state_attr('weather.jersey_weather', 'forecast')[0].precipitation_probability }}%
+          {% endif %}
+
+  - alias: "High Tide Alert"
+    trigger:
+      platform: time_pattern
+      minutes: '/15'
+    condition:
+      - condition: template
+        value_template: >
+          {% set now = now().strftime('%H:%M') %}
+          {% set tide_time = states('sensor.tide_2') %}
+          {% if states_attr('sensor.tide_2', 'highLow') == 'High water' %}
+            {% set time_diff = (as_timestamp(now) - as_timestamp(tide_time)) | abs %}
+            {{ time_diff < 900 }}
+          {% else %}
+            false
+          {% endif %}
+    action:
+      service: notify.mobile_app
+      data:
+        title: "High Tide Alert"
+        message: "High tide is about to occur! Current height: {{ state_attr('sensor.tide_2', 'height_m') }}m"
+
+# Template sensors for more advanced usage
+
+template:
+  - sensor:
+      - name: "Jersey Weather Summary"
+        state: >
+          {{ states('sensor.weather_condition') }}
+        attributes:
+          temperature: "{{ states('sensor.current_temperature') }}°C"
+          wind: "{{ states('sensor.wind_speed') }} km/h {{ states('sensor.wind_direction') }}"
+          uv_index: "{{ states('sensor.uv_index') }}"
+          next_tide: >
+            {% set tide = state_attr('sensor.tide_1', 'highLow') %}
+            {% set time = state_attr('sensor.tide_1', 'time') %}
+            {% set height = state_attr('sensor.tide_1', 'height_m') %}
+            {{ tide }} at {{ time }} ({{ height }}m)

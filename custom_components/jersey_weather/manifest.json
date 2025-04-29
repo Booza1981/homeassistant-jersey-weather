@@ -1,0 +1,10 @@
+{
+  "domain": "jersey_weather",
+  "name": "Jersey Weather",
+  "documentation": "https://github.com/yourusername/jersey_weather",
+  "dependencies": [],
+  "codeowners": ["@yourusername"],
+  "requirements": [],
+  "iot_class": "cloud_polling",
+  "version": "0.1.0"
+}
