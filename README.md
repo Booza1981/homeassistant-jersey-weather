@@ -2,6 +2,7 @@
 
 <div align="center">
   <img src="images/logo.svg" alt="Jersey Met Logo" width="200">
+  <p><i>SVG recreation of the Jersey Met logo</i></p>
 
   [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 </div>
@@ -70,12 +71,6 @@ This integration uses data from the Jersey Met service API endpoints:
 - Weather forecast: `https://prodgojweatherstorage.blob.core.windows.net/data/jerseyForecast.json`
 - Tide data: `https://prodgojweatherstorage.blob.core.windows.net/data/JerseyTide5Day.json`
 - Weather images: Various endpoints under `https://sojpublicdata.blob.core.windows.net/jerseymet/`
-
-## Screenshots
-
-_Weather entity showing current conditions and forecast:_
-
-![Weather Entity](https://github.com/Booza1981/homeassistant-jersey-weather/raw/main/images/weather_entity.png)
 
 ## Troubleshooting
 
