@@ -5,6 +5,8 @@ DOMAIN = "jersey_weather"
 # API endpoints
 FORECAST_URL = "https://prodgojweatherstorage.blob.core.windows.net/data/jerseyForecast.json"
 TIDE_URL = "https://prodgojweatherstorage.blob.core.windows.net/data/JerseyTide5Day.json"
+COASTAL_REPORTS_URL = "https://prodgojweatherstorage.blob.core.windows.net/data/CoastalReports.json"
+SHIPPING_FORECAST_URL = "https://prodgojweatherstorage.blob.core.windows.net/data/Shipping.json"
 RADAR_IMAGE_URL = "https://sojpublicdata.blob.core.windows.net/jerseymet/Radar10.JPG"
 SATELLITE_IMAGE_URL = "https://sojpublicdata.blob.core.windows.net/jerseymet/Satellite10.JPG"
 WIND_WAVES_IMAGE_URL = "https://sojpublicdata.blob.core.windows.net/jerseymet/Wind%20Waves%202018%2049.png"
@@ -21,6 +23,9 @@ ATTR_WIND_SPEED_KM = "wind_speed_km"
 ATTR_WIND_SPEED_KNOTS = "wind_speed_knots"
 ATTR_RAIN_PROBABILITY = "rain_probability"
 ATTR_UV_INDEX = "uv_index"
+ATTR_PRESSURE = "pressure"
+ATTR_PRESSURE_TENDENCY = "pressure_tendency"
+ATTR_SEA_TEMPERATURE = "sea_temperature"
 
 # Weather condition mappings from Jersey Weather icons to Home Assistant conditions
 CONDITION_MAPPINGS = {
