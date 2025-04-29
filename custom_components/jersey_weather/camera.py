@@ -2,12 +2,11 @@
 import logging
 from typing import Optional
 
-import aiohttp
 from homeassistant.components.camera import Camera
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     DOMAIN,
@@ -26,8 +25,8 @@ async def async_setup_entry(
     """Set up Jersey Weather camera entities based on config entry."""
     # Add camera entities for various images
     cameras = [
-        JerseyWeatherCamera(hass, "radar", "Jersey Weather Radar", RADAR_IMAGE_URL),
-        JerseyWeatherCamera(hass, "satellite", "Jersey Weather Satellite", SATELLITE_IMAGE_URL),
+        JerseyWeatherCamera(hass, "radar", "Radar", RADAR_IMAGE_URL),
+        JerseyWeatherCamera(hass, "satellite", "Satellite", SATELLITE_IMAGE_URL),
         JerseyWeatherCamera(hass, "wind_waves", "Jersey Wind Waves", WIND_WAVES_IMAGE_URL),
         JerseyWeatherCamera(hass, "sea_state_am", "Jersey Sea State AM", SEA_STATE_AM_IMAGE_URL),
         JerseyWeatherCamera(hass, "sea_state_pm", "Jersey Sea State PM", SEA_STATE_PM_IMAGE_URL),
@@ -64,12 +63,14 @@ class JerseyWeatherCamera(Camera):
     ) -> Optional[bytes]:
         """Return image response."""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(self._image_url) as resp:
-                    if resp.status == 200:
-                        self._image = await resp.read()
-                        return self._image
+            session = async_get_clientsession(self.hass)
+            async with session.get(self._image_url) as resp:
+                if resp.status == 200:
+                    self._image = await resp.read()
+                    return self._image
+                else:
+                    _LOGGER.error("Failed to fetch camera image: %s", resp.status)
         except Exception as error:
-            _LOGGER.error(f"Error getting camera image: {error}")
+            _LOGGER.error("Error getting camera image: %s", error)
             
         return self._image

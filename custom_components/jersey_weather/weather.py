@@ -3,13 +3,12 @@ import logging
 from datetime import datetime, timedelta
 
 from homeassistant.components.weather import (
-    Forecast,
     WeatherEntity,
     WeatherEntityFeature,
+    Forecast,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
-    TEMP_CELSIUS,
     UnitOfPrecipitationDepth,
     UnitOfPressure,
     UnitOfSpeed,
@@ -29,12 +28,16 @@ async def async_setup_entry(
     """Set up Jersey Weather weather platform based on config_entry."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
     
+    _LOGGER.debug("Setting up weather platform with coordinator data: %s", 
+                  "available" if coordinator.data else "not available")
+    
     async_add_entities([JerseyWeather(coordinator)])
 
 
 class JerseyWeather(CoordinatorEntity, WeatherEntity):
     """Implementation of Jersey Weather as a weather entity."""
 
+    _attr_has_entity_name = True
     _attr_supported_features = WeatherEntityFeature.FORECAST_DAILY
     _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_native_precipitation_unit = UnitOfPrecipitationDepth.MILLIMETERS
@@ -53,11 +56,20 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             "model": "Weather API",
             "sw_version": "1.0",
         }
+        _LOGGER.debug("Initialized weather entity with coordinator data: %s", 
+                     "available" if coordinator.data else "not available")
+
+    @property
+    def available(self) -> bool:
+        """Return if weather data is available."""
+        if not self.coordinator.data:
+            return False
+        return "forecast" in self.coordinator.data
 
     @property
     def condition(self):
         """Return the current weather condition."""
-        if not self.coordinator.data or "forecast" not in self.coordinator.data:
+        if not self.available:
             return None
             
         try:
@@ -66,13 +78,14 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             
             # Map icon to HA condition
             return CONDITION_MAPPINGS.get(icon, "cloudy")
-        except (KeyError, IndexError):
+        except (KeyError, IndexError) as e:
+            _LOGGER.error("Error getting condition: %s", e)
             return None
 
     @property
     def native_temperature(self):
         """Return the current temperature."""
-        if not self.coordinator.data or "forecast" not in self.coordinator.data:
+        if not self.available:
             return None
             
         temp_str = self.coordinator.data["forecast"].get("currentTemprature", "")
@@ -81,24 +94,26 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             
         try:
             return float(temp_str.replace("°C", ""))
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as e:
+            _LOGGER.error("Error parsing temperature: %s", e)
             return None
 
     @property
     def native_wind_speed(self):
         """Return the wind speed."""
-        if not self.coordinator.data or "forecast" not in self.coordinator.data:
+        if not self.available:
             return None
             
         try:
             return float(self.coordinator.data["forecast"]["forecastDay"][0].get("windSpeedKM", 0))
-        except (KeyError, IndexError, ValueError):
+        except (KeyError, IndexError, ValueError) as e:
+            _LOGGER.error("Error getting wind speed: %s", e)
             return None
 
     @property
     def wind_bearing(self):
         """Return the wind bearing."""
-        if not self.coordinator.data or "forecast" not in self.coordinator.data:
+        if not self.available:
             return None
             
         try:
@@ -113,37 +128,15 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             }
             
             return direction_map.get(direction)
-        except (KeyError, IndexError):
+        except (KeyError, IndexError) as e:
+            _LOGGER.error("Error getting wind bearing: %s", e)
             return None
 
     @property
-    def native_pressure(self):
-        """Return the pressure."""
-        # Not provided in the API
-        return None
-
-    @property
-    def native_visibility(self):
-        """Return the visibility."""
-        # Not provided in the API
-        return None
-
-    @property
-    def native_humidity(self):
-        """Return the humidity."""
-        # Not provided in the API
-        return None
-
-    @property
-    def native_apparent_temperature(self):
-        """Return the apparent temperature."""
-        # Not provided in the API
-        return None
-
-    @property
-    def native_forecast(self):
+    def forecast(self):
         """Return the forecast."""
-        if not self.coordinator.data or "forecast" not in self.coordinator.data:
+        if not self.available:
+            _LOGGER.debug("No forecast data available")
             return None
             
         forecast_list = []
@@ -158,13 +151,13 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
                 date_str = day.get("dayName", "")
                 
                 # Create forecast object
-                forecast_data = {
-                    "datetime": date_str,
-                    "condition": CONDITION_MAPPINGS.get(day.get("dayIcon"), "cloudy"),
-                    "native_temperature": float(day.get("maxTemp", "0").replace("°C", "")),
-                    "native_templow": float(day.get("minTemp", "0").replace("°C", "")),
-                    "native_wind_speed": float(day.get("windSpeedKM", 0)),
-                }
+                forecast_data = Forecast(
+                    datetime=date_str,
+                    condition=CONDITION_MAPPINGS.get(day.get("dayIcon"), "cloudy"),
+                    native_temperature=float(day.get("maxTemp", "0").replace("°C", "")),
+                    native_templow=float(day.get("minTemp", "0").replace("°C", "")),
+                    native_wind_speed=float(day.get("windSpeedKM", 0)),
+                )
                 
                 # Add precipitation probability if available
                 if day.get("rainProbAfternoon"):
@@ -176,7 +169,9 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
                 if len(forecast_list) >= 5:
                     break
                     
+            _LOGGER.debug("Forecast data generated with %d days", len(forecast_list))
+            return forecast_list
+                    
         except (KeyError, ValueError) as e:
-            _LOGGER.error(f"Error parsing forecast data: {e}")
-            
-        return forecast_list
+            _LOGGER.error("Error parsing forecast data: %s", e)
+            return None
