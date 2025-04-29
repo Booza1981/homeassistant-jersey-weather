@@ -2,7 +2,11 @@
 import logging
 from datetime import datetime
 
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
+from homeassistant.components.sensor import (
+    SensorEntity, 
+    SensorDeviceClass,
+    SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -10,6 +14,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.const import (
     UnitOfTemperature,
     UnitOfSpeed,
+    PERCENTAGE,
+    UnitOfTime,
 )
 
 from .const import (
@@ -46,6 +52,9 @@ async def async_setup_entry(
     sensors.append(JerseyWeatherConditionSensor(coordinator))
     sensors.append(JerseySunriseSensor(coordinator))
     sensors.append(JerseySunsetSensor(coordinator))
+    
+    # Additional sensors for enhanced weather data
+    sensors.append(JerseyRainProbabilitySensor(coordinator))
     
     # Tide Sensors - we'll create sensors for today's tides
     for i in range(4):  # Usually 4 tide events per day
@@ -89,6 +98,7 @@ class JerseyCurrentTemperatureSensor(JerseyWeatherSensorBase):
         self._attr_name = "Current Temperature"
         self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
         self._attr_device_class = SensorDeviceClass.TEMPERATURE
+        self._attr_state_class = SensorStateClass.MEASUREMENT
         
     @property
     def native_value(self):
@@ -128,6 +138,7 @@ class JerseyWindDirectionSensor(JerseyWeatherSensorBase):
         """Initialize the sensor."""
         super().__init__(coordinator, "wind_direction")
         self._attr_name = "Wind Direction"
+        self._attr_icon = "mdi:weather-windy"
         
     @property
     def native_value(self):
@@ -152,6 +163,7 @@ class JerseyWindSpeedSensor(JerseyWeatherSensorBase):
         self._attr_name = "Wind Speed"
         self._attr_native_unit_of_measurement = UnitOfSpeed.KILOMETERS_PER_HOUR
         self._attr_device_class = SensorDeviceClass.WIND_SPEED
+        self._attr_state_class = SensorStateClass.MEASUREMENT
         
     @property
     def native_value(self):
@@ -192,6 +204,8 @@ class JerseyUVIndexSensor(JerseyWeatherSensorBase):
         """Initialize the sensor."""
         super().__init__(coordinator, "uv_index")
         self._attr_name = "UV Index"
+        self._attr_icon = "mdi:weather-sunny-alert"
+        self._attr_state_class = SensorStateClass.MEASUREMENT
         
     @property
     def native_value(self):
@@ -205,6 +219,55 @@ class JerseyUVIndexSensor(JerseyWeatherSensorBase):
         except (KeyError, IndexError, ValueError) as e:
             _LOGGER.error("Error getting UV index: %s", e)
             return None
+
+
+class JerseyRainProbabilitySensor(JerseyWeatherSensorBase):
+    """Sensor for rain probability."""
+
+    def __init__(self, coordinator):
+        """Initialize the sensor."""
+        super().__init__(coordinator, "rain_probability")
+        self._attr_name = "Rain Probability"
+        self._attr_native_unit_of_measurement = PERCENTAGE
+        self._attr_icon = "mdi:water-percent"
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        
+    @property
+    def native_value(self):
+        """Return the maximum rain probability for the day."""
+        if not self.available:
+            return None
+            
+        try:
+            # Get today's forecast (first in the list)
+            today = self.coordinator.data["forecast"]["forecastDay"][0]
+            # Get the maximum probability among morning, afternoon, and evening
+            probs = [
+                int(today.get("rainProbMorning", 0) or 0),
+                int(today.get("rainProbAfternoon", 0) or 0),
+                int(today.get("rainProbEvening", 0) or 0)
+            ]
+            return max(probs)
+        except (KeyError, IndexError, ValueError) as e:
+            _LOGGER.error("Error getting rain probability: %s", e)
+            return 0
+            
+    @property
+    def extra_state_attributes(self):
+        """Return additional attributes."""
+        if not self.available:
+            return {}
+            
+        try:
+            today = self.coordinator.data["forecast"]["forecastDay"][0]
+            return {
+                "morning": today.get("rainProbMorning", 0),
+                "afternoon": today.get("rainProbAfternoon", 0),
+                "evening": today.get("rainProbEvening", 0)
+            }
+        except (KeyError, IndexError) as e:
+            _LOGGER.error("Error getting rain probability attributes: %s", e)
+            return {}
 
 
 class JerseyWeatherConditionSensor(JerseyWeatherSensorBase):
@@ -258,6 +321,7 @@ class JerseySunriseSensor(JerseyWeatherSensorBase):
         """Initialize the sensor."""
         super().__init__(coordinator, "sunrise")
         self._attr_name = "Sunrise"
+        self._attr_icon = "mdi:weather-sunset-up"
         
     @property
     def native_value(self):
@@ -280,6 +344,7 @@ class JerseySunsetSensor(JerseyWeatherSensorBase):
         """Initialize the sensor."""
         super().__init__(coordinator, "sunset")
         self._attr_name = "Sunset"
+        self._attr_icon = "mdi:weather-sunset-down"
         
     @property
     def native_value(self):
@@ -303,6 +368,7 @@ class JerseyTideSensor(JerseyWeatherSensorBase):
         super().__init__(coordinator, f"tide_{index}")
         self._index = index
         self._attr_name = f"Tide {index + 1}"
+        self._attr_icon = "mdi:wave"
         
     @property
     def native_value(self):

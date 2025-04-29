@@ -48,7 +48,7 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
         """Initialize Jersey Weather."""
         super().__init__(coordinator)
         self._attr_unique_id = "jersey_weather"
-        self._attr_name = "Jersey Weather"
+        self._attr_name = "Home"  # Changed to match other weather integrations
         self._attr_device_info = {
             "identifiers": {(DOMAIN, "jersey_weather")},
             "name": "Jersey Weather",
@@ -142,34 +142,61 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
         forecast_list = []
         
         try:
+            # Create forecasts for each day
             for day_index, day in enumerate(self.coordinator.data["forecast"]["forecastDay"]):
-                # Skip today (index 0) since it's current conditions
+                # Parse date from day name (e.g., "Wed 30 Apr", "Thu 1 May")
+                day_name = day.get("dayName", "").strip()
+                
+                # Always include today's forecast
                 if day_index == 0:
-                    continue
+                    date_str = "Today"
+                else:
+                    date_str = day_name
+                
+                # Convert temperatures to float
+                try:
+                    max_temp = float(day.get("maxTemp", "0").replace("°C", ""))
+                    min_temp = float(day.get("minTemp", "0").replace("°C", ""))
+                except ValueError:
+                    max_temp = 0
+                    min_temp = 0
                     
-                # Parse date
-                date_str = day.get("dayName", "")
+                # Convert wind speed to float
+                try:
+                    wind_speed = float(day.get("windSpeedKM", 0))
+                except ValueError:
+                    wind_speed = 0
+                
+                # Get condition from icon
+                icon = day.get("dayIcon", "")
+                condition = CONDITION_MAPPINGS.get(icon, "cloudy")
+                
+                # Get precipitation probability (default to highest of morning/afternoon/evening)
+                precip_prob = 0
+                for period in ["rainProbMorning", "rainProbAfternoon", "rainProbEvening"]:
+                    try:
+                        prob = int(day.get(period, 0))
+                        precip_prob = max(precip_prob, prob)
+                    except (ValueError, TypeError):
+                        pass
                 
                 # Create forecast object
-                forecast_data = Forecast(
-                    datetime=date_str,
-                    condition=CONDITION_MAPPINGS.get(day.get("dayIcon"), "cloudy"),
-                    native_temperature=float(day.get("maxTemp", "0").replace("°C", "")),
-                    native_templow=float(day.get("minTemp", "0").replace("°C", "")),
-                    native_wind_speed=float(day.get("windSpeedKM", 0)),
-                )
-                
-                # Add precipitation probability if available
-                if day.get("rainProbAfternoon"):
-                    forecast_data["precipitation_probability"] = int(day.get("rainProbAfternoon", 0))
+                forecast_data = {
+                    "datetime": date_str,
+                    "condition": condition,
+                    "temperature": max_temp,
+                    "templow": min_temp,
+                    "wind_speed": wind_speed,
+                    "precipitation_probability": precip_prob
+                }
                 
                 forecast_list.append(forecast_data)
                 
-                # Only include 5 days total
+                # Include up to 5 days
                 if len(forecast_list) >= 5:
                     break
                     
-            _LOGGER.debug("Forecast data generated with %d days", len(forecast_list))
+            _LOGGER.debug("Generated forecast data with %d days", len(forecast_list))
             return forecast_list
                     
         except (KeyError, ValueError) as e:
