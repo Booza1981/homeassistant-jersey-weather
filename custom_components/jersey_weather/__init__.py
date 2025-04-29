@@ -14,7 +14,13 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
 )
 
-from .const import DOMAIN, FORECAST_URL, TIDE_URL
+from .const import (
+    DOMAIN, 
+    FORECAST_URL, 
+    TIDE_URL, 
+    COASTAL_REPORTS_URL,
+    SHIPPING_FORECAST_URL,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -97,6 +103,28 @@ class JerseyWeatherCoordinator(DataUpdateCoordinator):
                     _LOGGER.error("Failed to fetch tide data: %s", resp.status)
         except Exception as error:
             _LOGGER.error("Error fetching tide data: %s", error)
+            
+        # Fetch coastal reports data
+        try:
+            async with session.get(COASTAL_REPORTS_URL) as resp:
+                if resp.status == 200:
+                    data["coastal"] = await resp.json()
+                    _LOGGER.debug("Successfully fetched coastal data")
+                else:
+                    _LOGGER.error("Failed to fetch coastal data: %s", resp.status)
+        except Exception as error:
+            _LOGGER.error("Error fetching coastal data: %s", error)
+            
+        # Fetch shipping forecast data
+        try:
+            async with session.get(SHIPPING_FORECAST_URL) as resp:
+                if resp.status == 200:
+                    data["shipping"] = await resp.json()
+                    _LOGGER.debug("Successfully fetched shipping data")
+                else:
+                    _LOGGER.error("Failed to fetch shipping data: %s", resp.status)
+        except Exception as error:
+            _LOGGER.error("Error fetching shipping data: %s", error)
         
         _LOGGER.debug("Data keys: %s", data.keys())
         if "forecast" in data:
