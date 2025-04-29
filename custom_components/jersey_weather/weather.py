@@ -240,10 +240,8 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             if not self.available:
                 _LOGGER.debug("No forecast data available")
                 return None
-        
-        forecast_list = []
-        
-        try:
+            
+            forecast_list = []
             today = datetime.now()
             
             for day_index, day in enumerate(self.coordinator.data["forecast"]["forecastDay"]):
