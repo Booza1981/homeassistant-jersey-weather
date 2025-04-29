@@ -14,6 +14,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.const import (
     UnitOfTemperature,
     UnitOfSpeed,
+    UnitOfPressure,
     PERCENTAGE,
     UnitOfTime,
 )
@@ -28,6 +29,9 @@ from .const import (
     ATTR_WIND_SPEED_KM, 
     ATTR_WIND_SPEED_KNOTS, 
     ATTR_WIND_SPEED_MPH,
+    ATTR_PRESSURE,
+    ATTR_PRESSURE_TENDENCY,
+    ATTR_SEA_TEMPERATURE,
     DOMAIN,
 )
 
@@ -40,7 +44,7 @@ async def async_setup_entry(
     coordinator = hass.data[DOMAIN][entry.entry_id]
     
     _LOGGER.debug("Setting up sensors with coordinator data: %s", 
-                 "available" if coordinator.data else "not available")
+                  "available" if coordinator.data else "not available")
     
     sensors = []
     
@@ -55,6 +59,10 @@ async def async_setup_entry(
     
     # Additional sensors for enhanced weather data
     sensors.append(JerseyRainProbabilitySensor(coordinator))
+    
+    # New sensors for coastal and shipping data
+    sensors.append(JerseyAirportPressureSensor(coordinator))
+    sensors.append(JerseySeaTemperatureSensor(coordinator))
     
     # Tide Sensors - we'll create sensors for today's tides
     for i in range(4):  # Usually 4 tide events per day
@@ -399,4 +407,133 @@ class JerseyTideSensor(JerseyWeatherSensorBase):
             }
         except (KeyError, IndexError) as e:
             _LOGGER.error("Error getting tide attributes: %s", e)
+            return {}
+
+
+class JerseyAirportPressureSensor(JerseyWeatherSensorBase):
+    """Sensor for Jersey Airport pressure."""
+
+    def __init__(self, coordinator):
+        """Initialize the sensor."""
+        super().__init__(coordinator, "airport_pressure")
+        self._attr_name = "Jersey Airport Pressure"
+        self._attr_native_unit_of_measurement = UnitOfPressure.HPA
+        self._attr_device_class = SensorDeviceClass.PRESSURE
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_icon = "mdi:gauge"
+        
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        if not self.coordinator.data:
+            return False
+        return "coastal" in self.coordinator.data
+        
+    @property
+    def native_value(self):
+        """Return the pressure value."""
+        if not self.available:
+            return None
+            
+        try:
+            # Find Jersey Airport in the station reports
+            stations = self.coordinator.data["coastal"].get("StationReport", [])
+            for station in stations:
+                if station.get("Name") == "Jersey Airport":
+                    # Convert pressure string to number
+                    pressure_str = station.get("Pressure", "")
+                    if pressure_str:
+                        try:
+                            return float(pressure_str)
+                        except ValueError:
+                            _LOGGER.error("Error parsing pressure value: %s", pressure_str)
+                    break
+            return None
+        except (KeyError, ValueError) as e:
+            _LOGGER.error("Error getting airport pressure: %s", e)
+            return None
+            
+    @property
+    def extra_state_attributes(self):
+        """Return additional attributes."""
+        if not self.available:
+            return {}
+            
+        try:
+            stations = self.coordinator.data["coastal"].get("StationReport", [])
+            for station in stations:
+                if station.get("Name") == "Jersey Airport":
+                    return {
+                        "wind": station.get("Wind", ""),
+                        "visibility": station.get("Visibility", ""),
+                        "weather": station.get("Weather", ""),
+                        ATTR_PRESSURE_TENDENCY: station.get("Tendency", ""),
+                        "updated": self.coordinator.data["coastal"].get("Date", "") + " " + 
+                                   self.coordinator.data["coastal"].get("Time", "")
+                    }
+            return {}
+        except (KeyError) as e:
+            _LOGGER.error("Error getting airport pressure attributes: %s", e)
+            return {}
+
+
+class JerseySeaTemperatureSensor(JerseyWeatherSensorBase):
+    """Sensor for sea temperature."""
+
+    def __init__(self, coordinator):
+        """Initialize the sensor."""
+        super().__init__(coordinator, "sea_temperature")
+        self._attr_name = "Sea Temperature"
+        self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+        self._attr_device_class = SensorDeviceClass.TEMPERATURE
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_icon = "mdi:waves"
+        
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        if not self.coordinator.data:
+            return False
+        return "shipping" in self.coordinator.data
+        
+    @property
+    def native_value(self):
+        """Return the sea temperature."""
+        if not self.available:
+            return None
+            
+        try:
+            # Extract the sea temperature from shipping data
+            temp_str = self.coordinator.data["shipping"].get("seatempToday", "")
+            if not temp_str:
+                return None
+                
+            # Extract numeric value from string like "12.2°C"
+            try:
+                return float(temp_str.replace("°C", ""))
+            except (ValueError, TypeError):
+                _LOGGER.error("Error parsing sea temperature: %s", temp_str)
+                return None
+        except (KeyError) as e:
+            _LOGGER.error("Error getting sea temperature: %s", e)
+            return None
+            
+    @property
+    def extra_state_attributes(self):
+        """Return additional attributes."""
+        if not self.available:
+            return {}
+            
+        try:
+            shipping = self.coordinator.data["shipping"]
+            return {
+                "wind_description": shipping.get("winddescToday", ""),
+                "sea_state": shipping.get("seastateToday", ""),
+                "weather": shipping.get("weatherToday", ""),
+                "visibility": shipping.get("visibilityToday", ""),
+                "issued_at": shipping.get("Issued", ""),
+                "forecast_date": shipping.get("Date", "")
+            }
+        except (KeyError) as e:
+            _LOGGER.error("Error getting sea temperature attributes: %s", e)
             return {}
