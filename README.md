@@ -6,7 +6,7 @@
   [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 </div>
 
-This custom integration fetches weather data from the Jersey Met service and makes it available in Home Assistant. The integration provides real-time weather conditions, forecasts, and tide information for Jersey, Channel Islands.
+This custom integration fetches weather data from the Jersey Met service and makes it available in Home Assistant. The integration provides real-time weather conditions, forecasts, tide information, and maritime data for Jersey, Channel Islands.
 
 ## Features
 
@@ -15,6 +15,8 @@ This custom integration fetches weather data from the Jersey Met service and mak
 - UV index information
 - Tide information
 - Weather images (radar, satellite, wind waves, sea state)
+- Maritime data (sea temperature, coastal reports)
+- Airport pressure and weather data
 
 ## Installation
 
@@ -52,6 +54,8 @@ This integration creates various entities to represent Jersey weather informatio
 - `sensor.sunrise`: Today's sunrise time
 - `sensor.sunset`: Today's sunset time
 - `sensor.tide_1` through `sensor.tide_4`: Today's tide information (high/low, times, heights)
+- `sensor.jersey_airport_pressure`: Current atmospheric pressure at Jersey Airport
+- `sensor.sea_temperature`: Current sea temperature around Jersey
 
 ### Weather Entity
 - `weather.home`: A complete weather entity with current conditions and 5-day forecast
@@ -69,6 +73,8 @@ This integration uses data from the Jersey Met service API endpoints:
 
 - Weather forecast: `https://prodgojweatherstorage.blob.core.windows.net/data/jerseyForecast.json`
 - Tide data: `https://prodgojweatherstorage.blob.core.windows.net/data/JerseyTide5Day.json`
+- Coastal reports: `https://prodgojweatherstorage.blob.core.windows.net/data/CoastalReports.json`
+- Shipping forecast: `https://prodgojweatherstorage.blob.core.windows.net/data/Shipping.json`
 - Weather images: Various endpoints under `https://sojpublicdata.blob.core.windows.net/jerseymet/`
 
 ## Troubleshooting
@@ -79,6 +85,40 @@ If you encounter issues with the integration:
 2. Verify that the Jersey Weather API endpoints are accessible
 3. Check the Home Assistant logs for error messages from the `jersey_weather` component
 4. Make sure you've restarted Home Assistant after installation
+
+## Example Dashboard
+
+Here's an example of how you might set up a dashboard with all the Jersey Weather data:
+
+```yaml
+type: vertical-stack
+cards:
+  - type: weather-forecast
+    entity: weather.home
+    show_forecast: true
+  - type: horizontal-stack
+    cards:
+      - type: sensor
+        entity: sensor.current_temperature
+        name: Temperature
+      - type: sensor
+        entity: sensor.jersey_airport_pressure
+        name: Pressure
+      - type: sensor
+        entity: sensor.sea_temperature
+        name: Sea Temp
+  - type: horizontal-stack
+    cards:
+      - type: sensor
+        entity: sensor.wind_speed
+        name: Wind Speed
+      - type: sensor
+        entity: sensor.wind_direction
+        name: Direction
+      - type: sensor
+        entity: sensor.rain_probability
+        name: Rain Chance
+```
 
 ## Credits
 
