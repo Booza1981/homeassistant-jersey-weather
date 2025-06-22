@@ -161,8 +161,17 @@ class JerseyForecastTempSensor(JerseyWeatherSensorBase):
     @property
     def native_value(self):
         try:
-            forecast = self.coordinator.data["forecast"]["forecastDay"]
-            return float(forecast[self._day_index].get(f"{self._temp_type}Temperature", "").replace("°C", ""))
+            forecast_days = self.coordinator.data["forecast"]["forecastDay"]
+            if self._day_index >= len(forecast_days):
+                return None
+
+            temp_key = "maxTemp" if self._temp_type == "max" else "minTemp"
+            temp_str = forecast_days[self._day_index].get(temp_key, "").replace("°C", "").strip()
+
+            if not temp_str:
+                return None
+            return float(temp_str)
+
         except Exception as e:
             _LOGGER.error("Error getting forecast temperature: %s", e)
             return None
