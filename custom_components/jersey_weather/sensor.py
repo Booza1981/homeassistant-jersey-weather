@@ -50,6 +50,11 @@ async def async_setup_entry(
     
     # Current Weather Sensors
     sensors.append(JerseyCurrentTemperatureSensor(coordinator))
+    # Forecast Temp Sensors for today and tomorrow
+    for i in range(2):  # 0 = today, 1 = tomorrow
+        sensors.append(JerseyForecastTempSensor(coordinator, i, "min"))
+        sensors.append(JerseyForecastTempSensor(coordinator, i, "max"))
+
     sensors.append(JerseyWindDirectionSensor(coordinator))
     sensors.append(JerseyWindSpeedSensor(coordinator))
     sensors.append(JerseyUVIndexSensor(coordinator))
@@ -68,6 +73,8 @@ async def async_setup_entry(
     for i in range(4):  # Usually 4 tide events per day
         sensors.append(JerseyTideSensor(coordinator, i))
     
+    sensors.append(JerseyTideSummarySensor(coordinator))
+
     _LOGGER.debug("Adding %d sensors", len(sensors))
     async_add_entities(sensors)
 
@@ -137,6 +144,28 @@ class JerseyCurrentTemperatureSensor(JerseyWeatherSensorBase):
             ATTR_FORECAST_DATE: forecast.get("forecastDate"),
             "temperature_f": forecast.get("currentTempratureFahrenheit", "").replace("°F", "")
         }
+
+class JerseyForecastTempSensor(JerseyWeatherSensorBase):
+    """Sensor for min/max forecast temperatures for days 1–4."""
+
+    def __init__(self, coordinator, day_index: int, temp_type: str):
+        key = f"day{day_index+1}_{temp_type}_temp"
+        super().__init__(coordinator, key)
+        self._day_index = day_index
+        self._temp_type = temp_type  # "min" or "max"
+        self._attr_name = f"Day {day_index+1} {temp_type.capitalize()} Temp"
+        self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+        self._attr_device_class = SensorDeviceClass.TEMPERATURE
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+
+    @property
+    def native_value(self):
+        try:
+            forecast = self.coordinator.data["forecast"]["forecastDay"]
+            return float(forecast[self._day_index].get(f"{self._temp_type}Temperature", "").replace("°C", ""))
+        except Exception as e:
+            _LOGGER.error("Error getting forecast temperature: %s", e)
+            return None
 
 
 class JerseyWindDirectionSensor(JerseyWeatherSensorBase):
@@ -408,6 +437,42 @@ class JerseyTideSensor(JerseyWeatherSensorBase):
         except (KeyError, IndexError) as e:
             _LOGGER.error("Error getting tide attributes: %s", e)
             return {}
+        
+class JerseyTideSummarySensor(JerseyWeatherSensorBase):
+    """Sensor for a compact summary of today's tides."""
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator, "tide_summary")
+        self._attr_name = "Tide Summary"
+        self._attr_icon = "mdi:wave"
+
+    @property
+    def native_value(self):
+        """Return a formatted string like '05:12 High, 11:26 Low, ...'"""
+        if not self.coordinator.data or "tide" not in self.coordinator.data:
+            return None
+
+        try:
+            tide_events = self.coordinator.data.get("tide", [{}])[0].get("TideTimes", [])
+            return ", ".join(
+                f"{event.get('Time')} {event.get('highLow')}"
+                for event in tide_events[:4]
+            )
+        except Exception as e:
+            _LOGGER.error("Error getting tide summary: %s", e)
+            return None
+
+    @property
+    def extra_state_attributes(self):
+        if not self.coordinator.data or "tide" not in self.coordinator.data:
+            return {}
+        try:
+            return {
+                "date": self.coordinator.data["tide"][0].get("formattedDate")
+            }
+        except Exception:
+            return {}
+
 
 
 class JerseyAirportPressureSensor(JerseyWeatherSensorBase):
