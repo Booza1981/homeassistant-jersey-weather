@@ -69,10 +69,7 @@ async def async_setup_entry(
     sensors.append(JerseyAirportPressureSensor(coordinator))
     sensors.append(JerseySeaTemperatureSensor(coordinator))
     
-    # Tide Sensors - we'll create sensors for today's tides
-    for i in range(4):  # Usually 4 tide events per day
-        sensors.append(JerseyTideSensor(coordinator, i))
-    
+    # Tide Sensors - we'll create sensors for today's tides  
     sensors.append(JerseyTideSummarySensor(coordinator))
 
     _LOGGER.debug("Adding %d sensors", len(sensors))
@@ -153,7 +150,14 @@ class JerseyForecastTempSensor(JerseyWeatherSensorBase):
         super().__init__(coordinator, key)
         self._day_index = day_index
         self._temp_type = temp_type  # "min" or "max"
-        self._attr_name = f"Day {day_index+1} {temp_type.capitalize()} Temp"
+        if day_index == 0:
+            label = "Today"
+        elif day_index == 1:
+            label = "Tomorrow"
+        else:
+            label = f"Day {day_index+1}"
+
+        self._attr_name = f"{label} {temp_type.capitalize()} Temp"
         self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
         self._attr_device_class = SensorDeviceClass.TEMPERATURE
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -404,48 +408,6 @@ class JerseySunsetSensor(JerseyWeatherSensorBase):
         except (KeyError, IndexError) as e:
             _LOGGER.error("Error getting sunset: %s", e)
             return None
-
-
-class JerseyTideSensor(JerseyWeatherSensorBase):
-    """Sensor for tide information."""
-
-    def __init__(self, coordinator, index):
-        """Initialize the sensor."""
-        super().__init__(coordinator, f"tide_{index}")
-        self._index = index
-        self._attr_name = f"Tide {index + 1}"
-        self._attr_icon = "mdi:wave"
-        
-    @property
-    def native_value(self):
-        """Return the tide type (high/low)."""
-        if not self.coordinator.data or "tide" not in self.coordinator.data:
-            return None
-            
-        try:
-            # Get today's tides (first in the list)
-            return self.coordinator.data["tide"][0]["TideTimes"][self._index].get("highLow")
-        except (KeyError, IndexError) as e:
-            _LOGGER.error("Error getting tide info: %s", e)
-            return None
-            
-    @property
-    def extra_state_attributes(self):
-        """Return additional attributes."""
-        if not self.coordinator.data or "tide" not in self.coordinator.data:
-            return {}
-            
-        try:
-            tide_info = self.coordinator.data["tide"][0]["TideTimes"][self._index]
-            return {
-                "time": tide_info.get("Time"),
-                "height_m": tide_info.get("Height"),
-                "height_ft": tide_info.get("HeightinFeet"),
-                "date": self.coordinator.data["tide"][0].get("formattedDate")
-            }
-        except (KeyError, IndexError) as e:
-            _LOGGER.error("Error getting tide attributes: %s", e)
-            return {}
         
 class JerseyTideSummarySensor(JerseyWeatherSensorBase):
     """Sensor for a compact summary of today's tides."""
