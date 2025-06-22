@@ -309,13 +309,54 @@ class JerseyRainProbabilitySensor(JerseyWeatherSensorBase):
             return {}
             
         try:
+            # Get attributes for today (for backward compatibility)
             today = self.coordinator.data["forecast"]["forecastDay"][0]
-            return {
-                "morning": today.get("rainProbMorning", 0),
-                "afternoon": today.get("rainProbAfternoon", 0),
-                "evening": today.get("rainProbEvening", 0)
+            today_probs = {
+                "morning": int(today.get("rainProbMorning", 0) or 0),
+                "afternoon": int(today.get("rainProbAfternoon", 0) or 0),
+                "evening": int(today.get("rainProbEvening", 0) or 0)
             }
-        except (KeyError, IndexError) as e:
+            
+            # Calculate today's average
+            today_avg = round(sum(today_probs.values()) / len(today_probs))
+            
+            # Create attributes dictionary with today's values at the top level for compatibility
+            attributes = {
+                "morning": today_probs["morning"],
+                "afternoon": today_probs["afternoon"],
+                "evening": today_probs["evening"],
+                "max": max(today_probs.values()),
+                "average": today_avg
+            }
+            
+            # Add daily averages for all forecast days
+            forecast_days = self.coordinator.data["forecast"]["forecastDay"]
+            for day in forecast_days:
+                day_name = day.get("dayName", "")
+                if not day_name:
+                    continue
+                    
+                # Calculate average probability for this day
+                day_probs = {
+                    "morning": int(day.get("rainProbMorning", 0) or 0),
+                    "afternoon": int(day.get("rainProbAfternoon", 0) or 0),
+                    "evening": int(day.get("rainProbEvening", 0) or 0)
+                }
+                
+                day_avg = round(sum(day_probs.values()) / len(day_probs))
+                
+                # Add to attributes with detailed breakdown
+                attributes[day_name] = {
+                    "morning": day_probs["morning"],
+                    "afternoon": day_probs["afternoon"],
+                    "evening": day_probs["evening"],
+                    "max": max(day_probs.values()),
+                    "average": day_avg
+                }
+            
+            return attributes
+            
+        except (KeyError, IndexError, ValueError) as e:
             _LOGGER.error("Error getting rain probability attributes: %s", e)
             return {}
 
