@@ -377,6 +377,77 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             
             attributes[f"forecast_day_{day_num}_condition"] = day_condition
 
+            # Detailed period-based forecast attributes
+            # Maps the period names from the design to the keys used in the API data
+            period_mapping = {
+                "morning": {
+                    "desc": "morningDescripiton", "precip": "rainProbMorning",
+                    "wind_km": "windspeedKMMorning", "wind_force": "windSpeedForceMorning",
+                    "wind_dir": "windDirectionMorning", "confidence": "confidenceMorning",
+                    "icon_tooltip": "iconMorningToolTip"
+                },
+                "afternoon": {
+                    "desc": "afternoonDescripiton", "precip": "rainProbAfternoon",
+                    "wind_km": "windspeedKMAfternoon", "wind_force": "windSpeedForceAfternoon",
+                    "wind_dir": "windDirectionAfternoon", "confidence": "confidenceAfternoon",
+                    "icon_tooltip": "iconAfternoonToolTip"
+                },
+                "night": {
+                    "desc": "nightDescripiton", "precip": "rainProbEvening",
+                    "wind_km": "windspeedKMEvening", "wind_force": "windSpeedForceEvening",
+                    "wind_dir": "windDirectionEvening", "confidence": "confidenceNight",
+                    "icon_tooltip": "iconNightToolTip"
+                }
+            }
+
+            for period_name, api_keys in period_mapping.items():
+                # Description
+                description = day_data.get(api_keys["desc"])
+                attributes[f"forecast_day_{day_num}_{period_name}_description"] = description
+
+                # Condition
+                # Start with a safe default
+                period_condition = "cloudy"
+                
+                # Try to map from tooltip first, as it's more specific
+                tooltip = day_data.get(api_keys["icon_tooltip"])
+                if tooltip and tooltip in TOOLTIP_CONDITION_MAPPINGS:
+                    period_condition = TOOLTIP_CONDITION_MAPPINGS[tooltip]
+                # Fallback to inferring from description text
+                elif description:
+                    desc_lower = description.lower()
+                    # Sort by length of keyword to match more specific terms first (e.g., "lightning" before "light")
+                    sorted_mappings = sorted(SUMMARY_CONDITION_MAPPINGS.items(), key=lambda item: len(item[0]), reverse=True)
+                    for keyword, ha_condition in sorted_mappings:
+                        if keyword in desc_lower:
+                            period_condition = ha_condition
+                            break
+                
+                attributes[f"forecast_day_{day_num}_{period_name}_condition"] = period_condition
+
+                # Precipitation Probability
+                try:
+                    precip_prob_str = day_data.get(api_keys["precip"], "0")
+                    attributes[f"forecast_day_{day_num}_{period_name}_precipitation_probability"] = int(precip_prob_str) if precip_prob_str else 0
+                except (ValueError, TypeError):
+                    attributes[f"forecast_day_{day_num}_{period_name}_precipitation_probability"] = 0
+
+                # Wind Speed
+                try:
+                    wind_speed_str = day_data.get(api_keys["wind_km"])
+                    attributes[f"forecast_day_{day_num}_{period_name}_wind_speed"] = float(wind_speed_str) if wind_speed_str else None
+                except (ValueError, TypeError):
+                    attributes[f"forecast_day_{day_num}_{period_name}_wind_speed"] = None
+
+                # Wind Speed Force
+                attributes[f"forecast_day_{day_num}_{period_name}_wind_speed_force"] = day_data.get(api_keys["wind_force"])
+
+                # Wind Bearing
+                attributes[f"forecast_day_{day_num}_{period_name}_wind_bearing"] = day_data.get(api_keys["wind_dir"])
+
+                # Confidence
+                attributes[f"forecast_day_{day_num}_{period_name}_confidence"] = day_data.get(api_keys["confidence"])
+
         return attributes
  
     def _update_attribution(self):
