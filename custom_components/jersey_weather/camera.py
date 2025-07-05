@@ -1,6 +1,10 @@
 """Camera platform for Jersey Weather integration."""
 import logging
 from typing import Optional
+import asyncio
+import io
+import aiohttp
+from PIL import Image
 
 from homeassistant.components.camera import Camera
 from homeassistant.config_entries import ConfigEntry
@@ -62,15 +66,48 @@ class JerseyWeatherCamera(Camera):
         self, width: Optional[int] = None, height: Optional[int] = None
     ) -> Optional[bytes]:
         """Return image response."""
-        try:
-            session = async_get_clientsession(self.hass)
-            async with session.get(self._image_url) as resp:
-                if resp.status == 200:
-                    self._image = await resp.read()
-                    return self._image
-                else:
-                    _LOGGER.error("Failed to fetch camera image: %s", resp.status)
-        except Exception as error:
-            _LOGGER.error("Error getting camera image: %s", error)
+        if self._attr_unique_id != "jersey_weather_camera_radar":
+            try:
+                session = async_get_clientsession(self.hass)
+                async with session.get(self._image_url) as resp:
+                    if resp.status == 200:
+                        self._image = await resp.read()
+                        return self._image
+                    else:
+                        _LOGGER.error("Failed to fetch camera image: %s", resp.status)
+            except Exception as error:
+                _LOGGER.error("Error getting camera image: %s", error)
+            return self._image
+
+        # Animated GIF logic for radar
+        image_urls = [f"https://www.gov.je/SiteCollectionImages/Weather/Present/web_rain_radar_zoomed_anim{i}.gif" for i in range(10)]
+        
+        async def fetch_image(session, url):
+            try:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        return await response.read()
+            except aiohttp.ClientError as e:
+                _LOGGER.warning(f"Failed to fetch {url}: {e}")
+            return None
+
+        session = async_get_clientsession(self.hass)
+        tasks = [fetch_image(session, url) for url in image_urls]
+        image_data = await asyncio.gather(*tasks)
+        
+        images = [Image.open(io.BytesIO(data)) for data in image_data if data]
+        
+        if not images:
+            _LOGGER.error("Could not download any radar images.")
+            return None
             
-        return self._image
+        buffer = io.BytesIO()
+        images[0].save(
+            buffer,
+            format='GIF',
+            save_all=True,
+            append_images=images[1:],
+            duration=500,
+            loop=0
+        )
+        return buffer.getvalue()
