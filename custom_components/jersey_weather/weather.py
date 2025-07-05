@@ -381,18 +381,21 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             # Maps the period names from the design to the keys used in the API data
             period_mapping = {
                 "morning": {
+                    "temp": "morningTemp",
                     "desc": "morningDescripiton", "precip": "rainProbMorning",
                     "wind_km": "windspeedKMMorning", "wind_force": "windSpeedForceMorning",
                     "wind_dir": "windDirectionMorning", "confidence": "confidenceMorning",
                     "icon_tooltip": "iconMorningToolTip"
                 },
                 "afternoon": {
+                    "temp": "maxTemp",
                     "desc": "afternoonDescripiton", "precip": "rainProbAfternoon",
                     "wind_km": "windspeedKMAfternoon", "wind_force": "windSpeedForceAfternoon",
                     "wind_dir": "windDirectionAfternoon", "confidence": "confidenceAfternoon",
                     "icon_tooltip": "iconAfternoonToolTip"
                 },
                 "night": {
+                    "temp": "minTemp",
                     "desc": "nightDescripiton", "precip": "rainProbEvening",
                     "wind_km": "windspeedKMEvening", "wind_force": "windSpeedForceEvening",
                     "wind_dir": "windDirectionEvening", "confidence": "confidenceNight",
@@ -401,6 +404,17 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             }
 
             for period_name, api_keys in period_mapping.items():
+                # Temperature
+                try:
+                    temp_key = api_keys.get("temp")
+                    temp_str = day_data.get(temp_key) if temp_key else None
+                    if temp_str:
+                        attributes[f"forecast_day_{day_num}_{period_name}_temperature"] = float(temp_str.replace("°C", ""))
+                    else:
+                        attributes[f"forecast_day_{day_num}_{period_name}_temperature"] = None
+                except (ValueError, TypeError):
+                    attributes[f"forecast_day_{day_num}_{period_name}_temperature"] = None
+
                 # Description
                 description = day_data.get(api_keys["desc"])
                 attributes[f"forecast_day_{day_num}_{period_name}_description"] = description
