@@ -2,6 +2,7 @@
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, List
+from collections import Counter
 
 from homeassistant.components.weather import (
     Forecast,
@@ -270,6 +271,114 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
             _LOGGER.error("Error getting wind bearing: %s", e)
             return None
 
+    @property
+    def extra_state_attributes(self) -> Dict[str, Any]:
+        """Return the state attributes."""
+        if not self.available:
+            return {}
+
+        attributes = {}
+        forecast_days = self.coordinator.data["forecast"]["forecastDay"]
+        today = datetime.now().date()
+
+        # Define condition priority from most to least severe
+        CONDITION_PRIORITY_MAP = {
+            "lightning-rainy": 10,
+            "pouring": 9,
+            "snowy-rainy": 8,
+            "snowy": 7,
+            "hail": 6,
+            "rainy": 5,
+            "fog": 4,
+            "cloudy": 3,
+            "partlycloudy": 2,
+            "sunny": 1,
+            "clear-night": 1,
+        }
+
+        for i, day_data in enumerate(forecast_days[:5]):
+            day_num = i + 1
+            
+            # Datetime
+            forecast_date = today + timedelta(days=i)
+            attributes[f"forecast_day_{day_num}_datetime"] = forecast_date.isoformat()
+
+            # High and Low Temperature
+            attributes[f"forecast_day_{day_num}_temp_high"] = float(day_data.get("maxTemp", "0").replace("°C", ""))
+            attributes[f"forecast_day_{day_num}_temp_low"] = float(day_data.get("minTemp", "0").replace("°C", ""))
+
+            # Precipitation Probability
+            precip_prob = 0
+            for period in ["rainProbMorning", "rainProbAfternoon", "rainProbEvening"]:
+                try:
+                    prob_str = day_data.get(period, "0")
+                    if prob_str and isinstance(prob_str, str):
+                        prob = int(prob_str)
+                        precip_prob = max(precip_prob, prob)
+                except (ValueError, TypeError):
+                    pass
+            attributes[f"forecast_day_{day_num}_precipitation_probability"] = precip_prob
+            
+            # Precipitation Amount - Not available in API data, so set to a default
+            attributes[f"forecast_day_{day_num}_precipitation_amount"] = 0.0
+
+            # Wind Speed
+            wind_speeds = []
+            for period in ["windspeedKMMorning", "windspeedKMAfternoon", "windspeedKMEvening"]:
+                try:
+                    speed_str = day_data.get(period)
+                    if speed_str:
+                        wind_speeds.append(float(speed_str))
+                except (ValueError, TypeError):
+                    pass
+            if wind_speeds:
+                attributes[f"forecast_day_{day_num}_wind_speed"] = round(sum(wind_speeds) / len(wind_speeds), 1)
+            else:
+                attributes[f"forecast_day_{day_num}_wind_speed"] = None
+
+            # Wind Bearing
+            directions = [day_data.get(f"windDirection{p}") for p in ["Morning", "Afternoon", "Evening"] if day_data.get(f"windDirection{p}")]
+            if directions:
+                attributes[f"forecast_day_{day_num}_wind_bearing"] = Counter(directions).most_common(1)[0][0]
+            else:
+                attributes[f"forecast_day_{day_num}_wind_bearing"] = None
+
+            # Summary
+            summary_parts = []
+            if day_data.get("morningDescripiton"):
+                summary_parts.append(f"Morning: {day_data.get('morningDescripiton')}")
+            if day_data.get("afternoonDescripiton"):
+                summary_parts.append(f"Afternoon: {day_data.get('afternoonDescripiton')}")
+            if day_data.get("nightDescripiton"):
+                summary_parts.append(f"Night: {day_data.get('nightDescripiton')}")
+            attributes[f"forecast_day_{day_num}_summary"] = ". ".join(summary_parts) + "." if summary_parts else day_data.get("summary")
+
+            # Condition
+            conditions = []
+            for desc_key in ["morningDescripiton", "afternoonDescripiton", "nightDescripiton", "summary"]:
+                desc = day_data.get(desc_key, "").lower()
+                for keyword, ha_condition in SUMMARY_CONDITION_MAPPINGS.items():
+                    if keyword in desc:
+                        conditions.append(ha_condition)
+            
+            if conditions:
+                # Sort by severity and pick the most severe
+                conditions.sort(key=lambda c: CONDITION_PRIORITY_MAP.get(c, 0), reverse=True)
+                day_condition = conditions[0]
+            else:
+                # Fallback to icon/tooltip based condition
+                icon = day_data.get("dayIcon", "")
+                tooltip = day_data.get("dayToolTip", "")
+                day_condition = CONDITION_MAPPINGS.get(icon)
+                if not day_condition and tooltip:
+                    day_condition = TOOLTIP_CONDITION_MAPPINGS.get(tooltip)
+                if not day_condition:
+                    day_condition = "cloudy"
+            
+            attributes[f"forecast_day_{day_num}_condition"] = day_condition
+
+        return attributes
+ 
     def _update_attribution(self):
         """Update attribution with current timestamp."""
         timestamp = datetime.now().strftime("%H:%M")
