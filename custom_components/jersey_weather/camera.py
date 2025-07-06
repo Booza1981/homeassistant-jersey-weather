@@ -95,6 +95,10 @@ class JerseyWeatherRadarCamera(JerseyWeatherBaseCamera):
         """Initialize the radar camera."""
         super().__init__(hass, camera_id, name)
 
+    @property
+    def state(self) -> str:
+        """Return the state of the entity."""
+        return "Idle"
     _attr_content_type = "image/gif"
 
     async def stream_source(self) -> str | None:
