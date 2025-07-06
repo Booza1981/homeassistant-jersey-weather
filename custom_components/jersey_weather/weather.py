@@ -385,21 +385,21 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
                     "desc": "morningDescripiton", "precip": "rainProbMorning",
                     "wind_km": "windspeedKMMorning", "wind_force": "windSpeedForceMorning",
                     "wind_dir": "windDirectionMorning", "confidence": "confidenceMorning",
-                    "icon_tooltip": "iconMorningToolTip"
+                    "icon_tooltip": "iconMorningToolTip", "wind_desc": "morningWindDescripiton"
                 },
                 "afternoon": {
                     "temp": "maxTemp",
                     "desc": "afternoonDescripiton", "precip": "rainProbAfternoon",
                     "wind_km": "windspeedKMAfternoon", "wind_force": "windSpeedForceAfternoon",
                     "wind_dir": "windDirectionAfternoon", "confidence": "confidenceAfternoon",
-                    "icon_tooltip": "iconAfternoonToolTip"
+                    "icon_tooltip": "iconAfternoonToolTip", "wind_desc": "afternoonWindDescripiton"
                 },
                 "night": {
                     "temp": "minTemp",
                     "desc": "nightDescripiton", "precip": "rainProbEvening",
                     "wind_km": "windspeedKMEvening", "wind_force": "windSpeedForceEvening",
                     "wind_dir": "windDirectionEvening", "confidence": "confidenceNight",
-                    "icon_tooltip": "iconNightToolTip"
+                    "icon_tooltip": "iconNightToolTip", "wind_desc": "nightWindDescripiton"
                 }
             }
 
@@ -461,6 +461,10 @@ class JerseyWeather(CoordinatorEntity, WeatherEntity):
 
                 # Confidence
                 attributes[f"forecast_day_{day_num}_{period_name}_confidence"] = day_data.get(api_keys["confidence"])
+
+                # Wind Description
+                wind_description = day_data.get(api_keys.get("wind_desc"))
+                attributes[f"forecast_day_{day_num}_{period_name}_wind_description"] = wind_description
 
         return attributes
  
