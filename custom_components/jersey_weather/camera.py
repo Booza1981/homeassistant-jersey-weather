@@ -6,7 +6,7 @@ import io
 import aiohttp
 from PIL import Image
 
-from homeassistant.components.camera import Camera
+from homeassistant.components.camera import Camera, CameraEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -61,6 +61,15 @@ class JerseyWeatherCamera(Camera):
         self._attr_is_streaming = False
         self._attr_motion_detection_enabled = False
         self._attr_is_recording = False
+        if camera_id == "radar":
+            self._attr_supported_features = CameraEntityFeature.STREAM
+
+    @property
+    async def stream_source(self) -> str | None:
+        """Return the source of the stream."""
+        if self._attr_unique_id == "jersey_weather_camera_radar":
+            return f"/api/camera_proxy_stream/{self.entity_id}"
+        return None
 
     @property
     def content_type(self) -> str:
