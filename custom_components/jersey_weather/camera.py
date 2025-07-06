@@ -14,8 +14,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     DOMAIN,
-    RADAR_IMAGE_URL,
-    SATELLITE_IMAGE_URL,
+    RADAR_URL_FORMAT,
+    RADAR_ZOOM_URL_FORMAT,
+    SATELLITE_URL_FORMAT,
     WIND_WAVES_IMAGE_URL,
     SEA_STATE_AM_IMAGE_URL,
     SEA_STATE_PM_IMAGE_URL,
@@ -29,11 +30,18 @@ async def async_setup_entry(
 ) -> None:
     """Set up Jersey Weather camera entities based on config entry."""
     cameras = [
-        JerseyWeatherRadarCamera(hass, "radar", "Radar"),
-        JerseyWeatherStaticCamera(hass, "satellite", "Satellite", SATELLITE_IMAGE_URL),
-        JerseyWeatherStaticCamera(hass, "wind_waves", "Jersey Wind Waves", WIND_WAVES_IMAGE_URL),
-        JerseyWeatherStaticCamera(hass, "sea_state_am", "Jersey Sea State AM", SEA_STATE_AM_IMAGE_URL),
-        JerseyWeatherStaticCamera(hass, "sea_state_pm", "Jersey Sea State PM", SEA_STATE_PM_IMAGE_URL),
+        JerseyWeatherRadarCamera(hass, "radar", "Radar", RADAR_URL_FORMAT),
+        JerseyWeatherRadarCamera(hass, "radar_zoom", "Radar Zoom", RADAR_ZOOM_URL_FORMAT),
+        JerseyWeatherRadarCamera(hass, "satellite", "Satellite", SATELLITE_URL_FORMAT),
+        JerseyWeatherStaticCamera(
+            hass, "wind_waves", "Jersey Wind Waves", WIND_WAVES_IMAGE_URL
+        ),
+        JerseyWeatherStaticCamera(
+            hass, "sea_state_am", "Jersey Sea State AM", SEA_STATE_AM_IMAGE_URL
+        ),
+        JerseyWeatherStaticCamera(
+            hass, "sea_state_pm", "Jersey Sea State PM", SEA_STATE_PM_IMAGE_URL
+        ),
     ]
     async_add_entities(cameras)
 
@@ -91,9 +99,12 @@ class JerseyWeatherRadarCamera(JerseyWeatherBaseCamera):
 
     _attr_supported_features = CameraEntityFeature.STREAM
 
-    def __init__(self, hass: HomeAssistant, camera_id: str, name: str) -> None:
+    def __init__(
+        self, hass: HomeAssistant, camera_id: str, name: str, url_format: str
+    ) -> None:
         """Initialize the radar camera."""
         super().__init__(hass, camera_id, name)
+        self._url_format = url_format
 
     @property
     def state(self) -> str:
@@ -109,7 +120,7 @@ class JerseyWeatherRadarCamera(JerseyWeatherBaseCamera):
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
         """Fetch radar images and create an animated GIF."""
-        image_urls = [f"https://sojpublicdata.blob.core.windows.net/jerseymet/Radar{i:02d}.JPG" for i in range(1, 11)]
+        image_urls = [self._url_format.format(i) for i in range(1, 11)]
 
         async def fetch_image(session, url):
             try:
