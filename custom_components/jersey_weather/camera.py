@@ -45,6 +45,7 @@ class JerseyWeatherCamera(Camera):
     def __init__(self, hass: HomeAssistant, camera_id: str, name: str, image_url: str = None) -> None:
         """Initialize the camera."""
         super().__init__()
+        _LOGGER.debug("Initializing camera: %s", name)
         self.hass = hass
         self._camera_id = camera_id
         self._is_radar = self._camera_id == "radar"
@@ -79,8 +80,11 @@ class JerseyWeatherCamera(Camera):
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
         """Return the camera image."""
+        _LOGGER.debug("Fetching camera image for %s", self.entity_id)
         if self._is_radar:
+            _LOGGER.debug("Fetching radar image")
             return await self._async_get_animated_gif()
+        _LOGGER.debug("Fetching static image from %s", self._image_url)
         return await self._async_get_static_jpg()
 
     async def _async_get_static_jpg(self) -> bytes | None:
