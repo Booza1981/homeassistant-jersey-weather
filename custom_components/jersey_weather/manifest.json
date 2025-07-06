@@ -7,7 +7,7 @@
   "codeowners": ["@Booza1981"],
   "requirements": ["Pillow"],
   "iot_class": "cloud_polling",
-  "version": "1.7.0-beta.0",
+  "version": "1.7.0-beta.1",
   "config_flow": true,
   "icon": "mdi:weather-partly-cloudy"
 }
