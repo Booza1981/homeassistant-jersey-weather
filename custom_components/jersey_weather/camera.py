@@ -23,35 +23,31 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up Jersey Weather camera entities based on config entry."""
-    # Add camera entities for various images
     cameras = [
-        JerseyWeatherCamera(hass, "radar", "Radar"),
-        JerseyWeatherCamera(hass, "satellite", "Satellite", SATELLITE_IMAGE_URL),
-        JerseyWeatherCamera(hass, "wind_waves", "Jersey Wind Waves", WIND_WAVES_IMAGE_URL),
-        JerseyWeatherCamera(hass, "sea_state_am", "Jersey Sea State AM", SEA_STATE_AM_IMAGE_URL),
-        JerseyWeatherCamera(hass, "sea_state_pm", "Jersey Sea State PM", SEA_STATE_PM_IMAGE_URL),
+        JerseyWeatherRadarCamera(hass, "radar", "Radar"),
+        JerseyWeatherStaticCamera(hass, "satellite", "Satellite", SATELLITE_IMAGE_URL),
+        JerseyWeatherStaticCamera(hass, "wind_waves", "Jersey Wind Waves", WIND_WAVES_IMAGE_URL),
+        JerseyWeatherStaticCamera(hass, "sea_state_am", "Jersey Sea State AM", SEA_STATE_AM_IMAGE_URL),
+        JerseyWeatherStaticCamera(hass, "sea_state_pm", "Jersey Sea State PM", SEA_STATE_PM_IMAGE_URL),
     ]
-    
     async_add_entities(cameras)
 
 
-class JerseyWeatherCamera(Camera):
-    """Implementation of a Jersey Weather camera."""
+class JerseyWeatherBaseCamera(Camera):
+    """Base class for Jersey Weather cameras."""
 
-    def __init__(self, hass: HomeAssistant, camera_id: str, name: str, image_url: str = None) -> None:
-        """Initialize the camera."""
+    def __init__(self, hass: HomeAssistant, camera_id: str, name: str) -> None:
+        """Initialize the base camera."""
         super().__init__()
-        _LOGGER.debug("Initializing camera: %s", name)
         self.hass = hass
         self._camera_id = camera_id
-        self._is_radar = self._camera_id == "radar"
         self._attr_unique_id = f"jersey_weather_camera_{self._camera_id}"
         self._attr_name = name
-        self._image_url = image_url
         self._attr_has_entity_name = True
         self._attr_device_info = {
             "identifiers": {(DOMAIN, "jersey_weather")},
@@ -61,34 +57,24 @@ class JerseyWeatherCamera(Camera):
             "sw_version": "1.0",
         }
 
-        if self._is_radar:
-            self._attr_supported_features = CameraEntityFeature.STREAM
+
+class JerseyWeatherStaticCamera(JerseyWeatherBaseCamera):
+    """Implementation of a Jersey Weather static camera."""
+
+    def __init__(self, hass: HomeAssistant, camera_id: str, name: str, image_url: str) -> None:
+        """Initialize the static camera."""
+        super().__init__(hass, camera_id, name)
+        self._image_url = image_url
 
     @property
     def content_type(self) -> str:
         """Return the content type of the image."""
-        return "image/gif" if self._is_radar else "image/jpeg"
-
-    @property
-    def stream_source(self) -> str | None:
-        """Return the source of the stream for the radar camera."""
-        if self._is_radar:
-            return f"/api/camera_proxy_stream/{self.entity_id}"
-        return None
+        return "image/jpeg"
 
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
         """Return the camera image."""
-        _LOGGER.debug("Fetching camera image for %s", self.entity_id)
-        if self._is_radar:
-            _LOGGER.debug("Fetching radar image")
-            return await self._async_get_animated_gif()
-        _LOGGER.debug("Fetching static image from %s", self._image_url)
-        return await self._async_get_static_jpg()
-
-    async def _async_get_static_jpg(self) -> bytes | None:
-        """Fetch a static JPG image."""
         if not self._image_url:
             _LOGGER.error("No image URL configured for %s", self.entity_id)
             return None
@@ -102,10 +88,32 @@ class JerseyWeatherCamera(Camera):
             _LOGGER.error("Error getting camera image for %s: %s", self.entity_id, e)
         return None
 
-    async def _async_get_animated_gif(self) -> bytes | None:
+
+class JerseyWeatherRadarCamera(JerseyWeatherBaseCamera):
+    """Implementation of a Jersey Weather radar camera."""
+
+    _attr_supported_features = CameraEntityFeature.STREAM
+
+    def __init__(self, hass: HomeAssistant, camera_id: str, name: str) -> None:
+        """Initialize the radar camera."""
+        super().__init__(hass, camera_id, name)
+
+    @property
+    def content_type(self) -> str:
+        """Return the content type of the image."""
+        return "image/gif"
+
+    @property
+    def stream_source(self) -> str | None:
+        """Return the source of the stream for the radar camera."""
+        return f"/api/camera_proxy_stream/{self.entity_id}"
+
+    async def async_camera_image(
+        self, width: int | None = None, height: int | None = None
+    ) -> bytes | None:
         """Fetch radar images and create an animated GIF."""
         image_urls = [f"https://sojpublicdata.blob.core.windows.net/jerseymet/Radar{i:02d}.JPG" for i in range(1, 11)]
-        
+
         async def fetch_image(session, url):
             try:
                 async with session.get(url) as response:
@@ -119,13 +127,13 @@ class JerseyWeatherCamera(Camera):
         session = async_get_clientsession(self.hass)
         tasks = [fetch_image(session, url) for url in image_urls]
         image_data = await asyncio.gather(*tasks)
-        
+
         images = [Image.open(io.BytesIO(data)) for data in image_data if data]
-        
+
         if not images:
             _LOGGER.error("Could not download any radar images to generate GIF.")
             return None
-            
+
         buffer = io.BytesIO()
         images[0].save(
             buffer,
