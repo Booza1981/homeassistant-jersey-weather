@@ -29,7 +29,7 @@ async def async_setup_entry(
     """Set up Jersey Weather camera entities based on config entry."""
     # Add camera entities for various images
     cameras = [
-        JerseyWeatherCamera(hass, "radar", "Radar", RADAR_IMAGE_URL),
+        JerseyWeatherCamera(hass, "radar", "Radar"),
         JerseyWeatherCamera(hass, "satellite", "Satellite", SATELLITE_IMAGE_URL),
         JerseyWeatherCamera(hass, "wind_waves", "Jersey Wind Waves", WIND_WAVES_IMAGE_URL),
         JerseyWeatherCamera(hass, "sea_state_am", "Jersey Sea State AM", SEA_STATE_AM_IMAGE_URL),
@@ -42,11 +42,13 @@ async def async_setup_entry(
 class JerseyWeatherCamera(Camera):
     """Implementation of a Jersey Weather camera."""
 
-    def __init__(self, hass, camera_id, name, image_url):
+    def __init__(self, hass: HomeAssistant, camera_id: str, name: str, image_url: str = None) -> None:
         """Initialize the camera."""
         super().__init__()
         self.hass = hass
-        self._attr_unique_id = f"jersey_weather_camera_{camera_id}"
+        self._camera_id = camera_id
+        self._is_radar = self._camera_id == "radar"
+        self._attr_unique_id = f"jersey_weather_camera_{self._camera_id}"
         self._attr_name = name
         self._image_url = image_url
         self._attr_has_entity_name = True
@@ -57,45 +59,47 @@ class JerseyWeatherCamera(Camera):
             "model": "Weather API",
             "sw_version": "1.0",
         }
-        self._image = None
-        self._attr_is_streaming = False
-        self._attr_motion_detection_enabled = False
-        self._attr_is_recording = False
-        if camera_id == "radar":
-            self._attr_supported_features = CameraEntityFeature.STREAM
 
-    @property
-    async def stream_source(self) -> str | None:
-        """Return the source of the stream."""
-        if self._attr_unique_id == "jersey_weather_camera_radar":
-            return f"/api/camera_proxy_stream/{self.entity_id}"
-        return None
+        if self._is_radar:
+            self._attr_supported_features = CameraEntityFeature.STREAM
 
     @property
     def content_type(self) -> str:
         """Return the content type of the image."""
-        if self._attr_unique_id == "jersey_weather_camera_radar":
-            return "image/gif"
-        return "image/jpeg"
-        
-    async def async_camera_image(
-        self, width: Optional[int] = None, height: Optional[int] = None
-    ) -> Optional[bytes]:
-        """Return image response."""
-        if self._attr_unique_id != "jersey_weather_camera_radar":
-            try:
-                session = async_get_clientsession(self.hass)
-                async with session.get(self._image_url) as resp:
-                    if resp.status == 200:
-                        self._image = await resp.read()
-                        return self._image
-                    else:
-                        _LOGGER.error("Failed to fetch camera image: %s", resp.status)
-            except Exception as error:
-                _LOGGER.error("Error getting camera image: %s", error)
-            return self._image
+        return "image/gif" if self._is_radar else "image/jpeg"
 
-        # Animated GIF logic for radar
+    @property
+    def stream_source(self) -> str | None:
+        """Return the source of the stream for the radar camera."""
+        if self._is_radar:
+            return f"/api/camera_proxy_stream/{self.entity_id}"
+        return None
+
+    async def async_camera_image(
+        self, width: int | None = None, height: int | None = None
+    ) -> bytes | None:
+        """Return the camera image."""
+        if self._is_radar:
+            return await self._async_get_animated_gif()
+        return await self._async_get_static_jpg()
+
+    async def _async_get_static_jpg(self) -> bytes | None:
+        """Fetch a static JPG image."""
+        if not self._image_url:
+            _LOGGER.error("No image URL configured for %s", self.entity_id)
+            return None
+        try:
+            session = async_get_clientsession(self.hass)
+            async with session.get(self._image_url) as resp:
+                if resp.status == 200:
+                    return await resp.read()
+                _LOGGER.error("Failed to fetch camera image from %s: %s", self._image_url, resp.status)
+        except Exception as e:
+            _LOGGER.error("Error getting camera image for %s: %s", self.entity_id, e)
+        return None
+
+    async def _async_get_animated_gif(self) -> bytes | None:
+        """Fetch radar images and create an animated GIF."""
         image_urls = [f"https://sojpublicdata.blob.core.windows.net/jerseymet/Radar{i:02d}.JPG" for i in range(1, 11)]
         
         async def fetch_image(session, url):
@@ -103,6 +107,7 @@ class JerseyWeatherCamera(Camera):
                 async with session.get(url) as response:
                     if response.status == 200:
                         return await response.read()
+                    _LOGGER.warning("Failed to fetch %s: %s", url, response.status)
             except aiohttp.ClientError as e:
                 _LOGGER.warning(f"Failed to fetch {url}: {e}")
             return None
@@ -114,7 +119,7 @@ class JerseyWeatherCamera(Camera):
         images = [Image.open(io.BytesIO(data)) for data in image_data if data]
         
         if not images:
-            _LOGGER.error("Could not download any radar images.")
+            _LOGGER.error("Could not download any radar images to generate GIF.")
             return None
             
         buffer = io.BytesIO()
@@ -126,6 +131,4 @@ class JerseyWeatherCamera(Camera):
             duration=500,
             loop=0
         )
-        gif_bytes = buffer.getvalue()
-        _LOGGER.info(f"Generated GIF bytes (first 10): {gif_bytes[:10]}")
-        return gif_bytes
+        return buffer.getvalue()
