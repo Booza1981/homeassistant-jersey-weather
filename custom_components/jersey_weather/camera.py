@@ -66,10 +66,7 @@ class JerseyWeatherStaticCamera(JerseyWeatherBaseCamera):
         super().__init__(hass, camera_id, name)
         self._image_url = image_url
 
-    @property
-    def content_type(self) -> str:
-        """Return the content type of the image."""
-        return "image/jpeg"
+    _attr_content_type = "image/jpeg"
 
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
@@ -98,10 +95,7 @@ class JerseyWeatherRadarCamera(JerseyWeatherBaseCamera):
         """Initialize the radar camera."""
         super().__init__(hass, camera_id, name)
 
-    @property
-    def content_type(self) -> str:
-        """Return the content type of the image."""
-        return "image/gif"
+    _attr_content_type = "image/gif"
 
     @property
     def stream_source(self) -> str | None:
