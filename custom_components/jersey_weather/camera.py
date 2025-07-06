@@ -27,7 +27,6 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    _LOGGER.error("<<<<< LOADING NEW CAMERA.PY - IF YOU SEE THIS, THE FILE IS UPDATED >>>>>")
     """Set up Jersey Weather camera entities based on config entry."""
     cameras = [
         JerseyWeatherRadarCamera(hass, "radar", "Radar"),
@@ -98,8 +97,7 @@ class JerseyWeatherRadarCamera(JerseyWeatherBaseCamera):
 
     _attr_content_type = "image/gif"
 
-    @property
-    def stream_source(self) -> str | None:
+    async def stream_source(self) -> str | None:
         """Return the source of the stream for the radar camera."""
         return f"/api/camera_proxy_stream/{self.entity_id}"
 
