@@ -61,6 +61,13 @@ class JerseyWeatherCamera(Camera):
         self._attr_is_streaming = False
         self._attr_motion_detection_enabled = False
         self._attr_is_recording = False
+
+    @property
+    def content_type(self) -> str:
+        """Return the content type of the image."""
+        if self._attr_unique_id == "jersey_weather_camera_radar":
+            return "image/gif"
+        return "image/jpeg"
         
     async def async_camera_image(
         self, width: Optional[int] = None, height: Optional[int] = None
@@ -80,7 +87,7 @@ class JerseyWeatherCamera(Camera):
             return self._image
 
         # Animated GIF logic for radar
-        image_urls = [f"https://www.gov.je/SiteCollectionImages/Weather/Present/web_rain_radar_zoomed_anim{i}.gif" for i in range(10)]
+        image_urls = [f"https://sojpublicdata.blob.core.windows.net/jerseymet/Radar{i:02d}.JPG" for i in range(1, 11)]
         
         async def fetch_image(session, url):
             try:
@@ -110,4 +117,6 @@ class JerseyWeatherCamera(Camera):
             duration=500,
             loop=0
         )
-        return buffer.getvalue()
+        gif_bytes = buffer.getvalue()
+        _LOGGER.info(f"Generated GIF bytes (first 10): {gif_bytes[:10]}")
+        return gif_bytes
