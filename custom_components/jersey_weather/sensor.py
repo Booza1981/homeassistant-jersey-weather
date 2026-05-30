@@ -1,6 +1,7 @@
 """Sensor platform for Jersey Weather integration."""
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+from collections import Counter
 
 from homeassistant.components.sensor import (
     SensorEntity, 
@@ -71,6 +72,9 @@ async def async_setup_entry(
     
     # Tide Sensors - we'll create sensors for today's tides  
     sensors.append(JerseyTideSummarySensor(coordinator))
+
+    # Forecast daily sensor for Bubble Card / weather card compatibility
+    sensors.append(JerseyWeatherForecastDailySensor(coordinator))
 
     _LOGGER.debug("Adding %d sensors", len(sensors))
     async_add_entities(sensors)
@@ -552,6 +556,112 @@ class JerseyAirportPressureSensor(JerseyWeatherSensorBase):
         except (KeyError) as e:
             _LOGGER.error("Error getting airport pressure attributes: %s", e)
             return {}
+
+
+class JerseyWeatherForecastDailySensor(JerseyWeatherSensorBase):
+    """Sensor exposing forecast array for Bubble Card / weather card compatibility."""
+
+    def __init__(self, coordinator):
+        """Initialize the sensor."""
+        super().__init__(coordinator, "weather_forecast_daily")
+        self._attr_name = "Weather Forecast Daily"
+        self._attr_icon = "mdi:weather-partly-cloudy"
+
+    @property
+    def native_value(self):
+        """Return the number of forecast days."""
+        if not self.available:
+            return None
+        try:
+            return len(self.coordinator.data["forecast"]["forecastDay"])
+        except (KeyError, IndexError):
+            return None
+
+    @property
+    def extra_state_attributes(self):
+        """Return forecast array compatible with Bubble Card weather widget."""
+        if not self.available:
+            return {}
+
+        from .const import CONDITION_MAPPINGS, TOOLTIP_CONDITION_MAPPINGS, SUMMARY_CONDITION_MAPPINGS
+
+        forecast = []
+        forecast_days = self.coordinator.data["forecast"]["forecastDay"]
+        today = datetime.now().date()
+
+        for i, day_data in enumerate(forecast_days):
+            # --- Condition mapping (same logic as weather.py) ---
+            icon = day_data.get("dayIcon", "")
+            tooltip = day_data.get("dayToolTip", "")
+            condition = CONDITION_MAPPINGS.get(icon)
+            if not condition and tooltip:
+                condition = TOOLTIP_CONDITION_MAPPINGS.get(tooltip)
+            if not condition:
+                desc_text = " ".join([
+                    day_data.get("summary", ""),
+                    day_data.get("nightDescripiton", ""),
+                    day_data.get("morningDescripiton", ""),
+                    day_data.get("afternoonDescripiton", "")
+                ]).lower()
+                sorted_mappings = sorted(
+                    SUMMARY_CONDITION_MAPPINGS.items(),
+                    key=lambda item: len(item[0]),
+                    reverse=True
+                )
+                for keyword, ha_condition in sorted_mappings:
+                    if keyword in desc_text:
+                        condition = ha_condition
+                        break
+            if not condition:
+                condition = "cloudy"
+
+            # --- Precipitation probability (max of periods) ---
+            precip_prob = 0
+            for period in ["rainProbMorning", "rainProbAfternoon", "rainProbEvening"]:
+                try:
+                    prob_str = day_data.get(period, "0")
+                    if prob_str and isinstance(prob_str, str):
+                        precip_prob = max(precip_prob, int(prob_str))
+                except (ValueError, TypeError):
+                    pass
+
+            # --- Wind speed (average of periods, km/h) ---
+            wind_speeds = []
+            for period in ["windspeedKMMorning", "windspeedKMAfternoon", "windspeedKMEvening"]:
+                try:
+                    speed_str = day_data.get(period)
+                    if speed_str:
+                        wind_speeds.append(float(speed_str))
+                except (ValueError, TypeError):
+                    pass
+            wind_speed = round(sum(wind_speeds) / len(wind_speeds), 1) if wind_speeds else None
+
+            # --- Wind bearing (most common direction) ---
+            directions = [
+                day_data.get(f"windDirection{p}")
+                for p in ["Morning", "Afternoon", "Evening"]
+                if day_data.get(f"windDirection{p}")
+            ]
+            wind_bearing = Counter(directions).most_common(1)[0][0] if directions else None
+
+            # --- Precipitation amount (not in API) ---
+            precip_amount = 0.0
+
+            # --- Build forecast entry ---
+            forecast_date = today + timedelta(days=i)
+            entry = {
+                "datetime": forecast_date.isoformat(),
+                "condition": condition,
+                "temperature": float(day_data.get("maxTemp", "0").replace("°C", "")),
+                "templow": float(day_data.get("minTemp", "0").replace("°C", "")),
+                "precipitation_probability": precip_prob,
+                "precipitation": precip_amount,
+                "wind_speed": wind_speed,
+                "wind_bearing": wind_bearing,
+            }
+            forecast.append(entry)
+
+        return {"forecast": forecast, "attribution": "Jersey Met"}
 
 
 class JerseySeaTemperatureSensor(JerseyWeatherSensorBase):
